@@ -4,7 +4,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CrawlerService } from './crawler.service';
 import { BrowserPoolService } from './browser-pool.service';
 import { TjspCjsgAdapter } from './adapters/tjsp-cjsg.adapter';
+import { StjSconAdapter, TERMOS_PADRAO_STJ } from './adapters/stj-scon.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
+import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -41,6 +43,29 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJSP');
+  }
+
+  /**
+   * Dispara um crawl manual do STJ. Diferente do TJSP, o SCON não aceita
+   * busca só por período — exige um critério de texto (ver
+   * stj-scon.adapter.ts) — então a coleta é por termo amplo, um por área
+   * do direito, não por data.
+   */
+  @Post('stj/executar')
+  async executarStj(@Body() dto: ExecutarCrawlStjDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'STJ' },
+      update: {},
+      create: { sigla: 'STJ', nome: 'Superior Tribunal de Justiça', instancia: 'SUPERIOR' },
+    });
+
+    const adapter = new StjSconAdapter(this.browserPool, {
+      termos: dto.termos ?? TERMOS_PADRAO_STJ,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('STJ');
   }
 }
 
