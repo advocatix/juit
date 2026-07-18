@@ -5,8 +5,10 @@ import { CrawlerService } from './crawler.service';
 import { BrowserPoolService } from './browser-pool.service';
 import { TjspCjsgAdapter } from './adapters/tjsp-cjsg.adapter';
 import { StjSconAdapter, TERMOS_PADRAO_STJ } from './adapters/stj-scon.adapter';
+import { TjrjEjurisAdapter } from './adapters/tjrj-ejuris.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
+import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -66,6 +68,27 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('STJ');
+  }
+
+  /**
+   * Dispara um crawl manual do TJRJ. Assim como o STJ, a busca é por
+   * termo livre (não achamos filtro só por data no e-JURIS ainda).
+   */
+  @Post('tjrj/executar')
+  async executarTjrj(@Body() dto: ExecutarCrawlTjrjDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJRJ' },
+      update: {},
+      create: { sigla: 'TJRJ', nome: 'Tribunal de Justiça do Rio de Janeiro', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjrjEjurisAdapter(this.browserPool, {
+      termo: dto.termo ?? 'responsabilidade civil',
+      maxPaginas: dto.maxPaginas ?? 3,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJRJ');
   }
 }
 
