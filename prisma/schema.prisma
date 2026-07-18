@@ -1,0 +1,109 @@
+// Banco de dados próprio do Juit — propositalmente isolado do schema do
+// advocatix (apps/api/prisma/schema.prisma). O objetivo é poder vender este
+// serviço fora do advocatix; nenhuma tabela aqui referencia Tenant/User do
+// monorepo principal. Integração com o advocatix acontece via API (API key),
+// nunca via import direto de Prisma Client entre os dois apps.
+
+// Output customizado e propositalmente FORA do node_modules/@prisma/client
+// compartilhado — o monorepo já hospeda um outro schema Prisma (packages/database)
+// que gera para esse mesmo caminho hoisted; sem isolar aqui, `prisma generate`
+// de um schema sobrescreve o client do outro.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma-juit/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("JUIT_DATABASE_URL")
+}
+
+/// Cliente da API do Juit — pode ser o próprio advocatix (consumindo como
+/// cliente interno) ou, no futuro, qualquer escritório/empresa externa.
+model ApiClient {
+  id           String   @id @default(cuid())
+  nome         String
+  apiKeyHash   String   @unique
+  ativo        Boolean  @default(true)
+  planoLimiteMensal Int @default(1000)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  buscas       BuscaLog[]
+
+  @@map("api_clients")
+}
+
+model Tribunal {
+  id        String   @id @default(cuid())
+  sigla     String   @unique // ex: STJ, TST, TJSP
+  nome      String
+  instancia String   // SUPERIOR | TRIBUNAL | REGIONAL
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  precedentes Precedente[]
+  crawlJobs   CrawlJob[]
+
+  @@map("tribunais")
+}
+
+/// Um precedente/decisão coletado de um tribunal.
+model Precedente {
+  id             String   @id @default(cuid())
+  tribunalId     String
+  tribunal       Tribunal @relation(fields: [tribunalId], references: [id])
+
+  numeroProcesso String?
+  orgaoJulgador  String?
+  relator        String?
+  dataJulgamento DateTime?
+  area           String?  // PREVIDENCIARIO | TRABALHISTA | CIVIL | ...
+  tese           String?  @db.Text
+  ementa         String?  @db.Text
+  textoIntegral  String?  @db.Text
+
+  fonte          String   // nome/URL do portal de origem
+  urlOrigem      String?
+  hashConteudo   String   @unique // dedupe entre re-coletas
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([tribunalId, area])
+  @@index([dataJulgamento])
+  @@map("precedentes")
+}
+
+/// Execução do crawler para um tribunal (histórico + observabilidade).
+model CrawlJob {
+  id              String    @id @default(cuid())
+  tribunalId      String
+  tribunal        Tribunal  @relation(fields: [tribunalId], references: [id])
+
+  status          String    @default("PENDENTE") // PENDENTE | RODANDO | CONCLUIDO | FALHOU
+  iniciadoEm      DateTime?
+  concluidoEm     DateTime?
+  itensColetados  Int       @default(0)
+  itensNovos      Int       @default(0)
+  erro            String?   @db.Text
+
+  createdAt       DateTime  @default(now())
+
+  @@index([tribunalId, status])
+  @@map("crawl_jobs")
+}
+
+/// Log de buscas — permite medir uso por cliente (billing futuro).
+model BuscaLog {
+  id          String    @id @default(cuid())
+  apiClientId String
+  apiClient   ApiClient @relation(fields: [apiClientId], references: [id])
+
+  query       String    @db.Text
+  resultados  Int
+  createdAt   DateTime  @default(now())
+
+  @@index([apiClientId, createdAt])
+  @@map("busca_logs")
+}
