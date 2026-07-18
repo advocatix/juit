@@ -31,8 +31,12 @@ export class CrawlerService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Substitui o adapter registrado para o mesmo tribunal, se já houver um
+   *  (permite reconfigurar o período de busca a cada chamada). */
   registrarAdapter(adapter: CrawlerAdapter) {
-    this.adapters.push(adapter);
+    const idx = this.adapters.findIndex((a) => a.tribunalSigla === adapter.tribunalSigla);
+    if (idx >= 0) this.adapters[idx] = adapter;
+    else this.adapters.push(adapter);
   }
 
   async executarCrawl(tribunalSigla: string): Promise<{ jobId: string }> {

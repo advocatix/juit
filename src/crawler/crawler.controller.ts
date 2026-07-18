@@ -1,0 +1,50 @@
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { ApiKeyGuard } from '../auth/api-key.guard';
+import { PrismaService } from '../prisma/prisma.service';
+import { CrawlerService } from './crawler.service';
+import { BrowserPoolService } from './browser-pool.service';
+import { TjspCjsgAdapter } from './adapters/tjsp-cjsg.adapter';
+import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
+
+@Controller('crawler')
+@UseGuards(ApiKeyGuard)
+export class CrawlerController {
+  constructor(
+    private readonly crawler: CrawlerService,
+    private readonly browserPool: BrowserPoolService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  /**
+   * Dispara um crawl manual do TJSP para um período de julgamento.
+   * Endpoint pensado para validar o adapter em dev/staging antes de
+   * existir um agendamento automático (@Cron ainda não implementado —
+   * escopo/frequência de coleta contínua é decisão separada).
+   */
+  @Post('tjsp/executar')
+  async executarTjsp(@Body() dto: ExecutarCrawlTjspDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJSP' },
+      update: {},
+      create: { sigla: 'TJSP', nome: 'Tribunal de Justiça de São Paulo', instancia: 'TRIBUNAL' },
+    });
+
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+
+    const adapter = new TjspCjsgAdapter(this.browserPool, {
+      dataJulgamentoInicio: dto.dataInicio ? parseDataBr(dto.dataInicio) : ontem,
+      dataJulgamentoFim: dto.dataFim ? parseDataBr(dto.dataFim) : hoje,
+      maxPaginas: dto.maxPaginas ?? 3,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJSP');
+  }
+}
+
+function parseDataBr(data: string): Date {
+  const [dd, mm, yyyy] = data.split('/').map(Number);
+  return new Date(yyyy, mm - 1, dd);
+}
