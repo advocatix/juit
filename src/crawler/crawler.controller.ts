@@ -8,11 +8,13 @@ import { StjSconAdapter, TERMOS_PADRAO_STJ } from './adapters/stj-scon.adapter';
 import { TjrjEjurisAdapter, TERMOS_PADRAO_TJRJ } from './adapters/tjrj-ejuris.adapter';
 import { TjscBuscaAdapter, TERMOS_PADRAO_TJSC } from './adapters/tjsc-busca.adapter';
 import { TjrsSolrAdapter, TERMOS_PADRAO_TJRS } from './adapters/tjrs-solr.adapter';
+import { TjbaGraphqlAdapter, TERMOS_PADRAO_TJBA } from './adapters/tjba-graphql.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
 import { ExecutarCrawlTjscDto } from './dto/executar-crawl-tjsc.dto';
 import { ExecutarCrawlTjrsDto } from './dto/executar-crawl-tjrs.dto';
+import { ExecutarCrawlTjbaDto } from './dto/executar-crawl-tjba.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -136,6 +138,27 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJRS');
+  }
+
+  /**
+   * Dispara um crawl manual do TJBA. GraphQL nativo, sem CAPTCHA, sem
+   * exigência de browser — melhor estruturado que o TJRS.
+   */
+  @Post('tjba/executar')
+  async executarTjba(@Body() dto: ExecutarCrawlTjbaDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJBA' },
+      update: {},
+      create: { sigla: 'TJBA', nome: 'Tribunal de Justiça da Bahia', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjbaGraphqlAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJBA,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJBA');
   }
 }
 
