@@ -5,7 +5,7 @@ import { CrawlerService } from './crawler.service';
 import { BrowserPoolService } from './browser-pool.service';
 import { TjspCjsgAdapter } from './adapters/tjsp-cjsg.adapter';
 import { StjSconAdapter, TERMOS_PADRAO_STJ } from './adapters/stj-scon.adapter';
-import { TjrjEjurisAdapter } from './adapters/tjrj-ejuris.adapter';
+import { TjrjEjurisAdapter, TERMOS_PADRAO_TJRJ } from './adapters/tjrj-ejuris.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -83,8 +83,8 @@ export class CrawlerController {
     });
 
     const adapter = new TjrjEjurisAdapter(this.browserPool, {
-      termo: dto.termo ?? 'responsabilidade civil',
-      maxPaginas: dto.maxPaginas ?? 3,
+      termos: dto.termos ?? TERMOS_PADRAO_TJRJ,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
     });
 
     this.crawler.registrarAdapter(adapter);

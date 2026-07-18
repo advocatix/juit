@@ -1,14 +1,25 @@
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+
+class TermoTjrjDto {
+  @IsString()
+  termo: string;
+
+  @IsOptional()
+  @IsString()
+  area?: string;
+}
 
 export class ExecutarCrawlTjrjDto {
   @IsOptional()
-  @IsString()
-  @MaxLength(200)
-  termo?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TermoTjrjDto)
+  termos?: TermoTjrjDto[];
 
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(100)
-  maxPaginas?: number;
+  @Max(20)
+  maxPaginasPorTermo?: number;
 }
