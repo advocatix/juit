@@ -6,9 +6,11 @@ import { BrowserPoolService } from './browser-pool.service';
 import { TjspCjsgAdapter } from './adapters/tjsp-cjsg.adapter';
 import { StjSconAdapter, TERMOS_PADRAO_STJ } from './adapters/stj-scon.adapter';
 import { TjrjEjurisAdapter, TERMOS_PADRAO_TJRJ } from './adapters/tjrj-ejuris.adapter';
+import { TjscBuscaAdapter, TERMOS_PADRAO_TJSC } from './adapters/tjsc-busca.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
+import { ExecutarCrawlTjscDto } from './dto/executar-crawl-tjsc.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -89,6 +91,28 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJRJ');
+  }
+
+  /**
+   * Dispara um crawl manual do TJSC. Único tribunal sem CAPTCHA nem
+   * exigência de browser — roda via HTTP puro, muito mais barato. Tem um
+   * WAF por IP em vez disso (ver tjsc-busca.adapter.ts).
+   */
+  @Post('tjsc/executar')
+  async executarTjsc(@Body() dto: ExecutarCrawlTjscDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJSC' },
+      update: {},
+      create: { sigla: 'TJSC', nome: 'Tribunal de Justiça de Santa Catarina', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjscBuscaAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJSC,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJSC');
   }
 }
 
