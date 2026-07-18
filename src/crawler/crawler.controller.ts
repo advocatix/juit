@@ -7,10 +7,12 @@ import { TjspCjsgAdapter } from './adapters/tjsp-cjsg.adapter';
 import { StjSconAdapter, TERMOS_PADRAO_STJ } from './adapters/stj-scon.adapter';
 import { TjrjEjurisAdapter, TERMOS_PADRAO_TJRJ } from './adapters/tjrj-ejuris.adapter';
 import { TjscBuscaAdapter, TERMOS_PADRAO_TJSC } from './adapters/tjsc-busca.adapter';
+import { TjrsSolrAdapter, TERMOS_PADRAO_TJRS } from './adapters/tjrs-solr.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
 import { ExecutarCrawlTjscDto } from './dto/executar-crawl-tjsc.dto';
+import { ExecutarCrawlTjrsDto } from './dto/executar-crawl-tjrs.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -113,6 +115,27 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJSC');
+  }
+
+  /**
+   * Dispara um crawl manual do TJRS. Backend Solr nativo (JSON puro),
+   * sem CAPTCHA, sem exigência de browser.
+   */
+  @Post('tjrs/executar')
+  async executarTjrs(@Body() dto: ExecutarCrawlTjrsDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJRS' },
+      update: {},
+      create: { sigla: 'TJRS', nome: 'Tribunal de Justiça do Rio Grande do Sul', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjrsSolrAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJRS,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJRS');
   }
 }
 
