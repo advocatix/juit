@@ -4,11 +4,12 @@ import { CrawlerController } from './crawler.controller';
 import { BrowserPoolService } from './browser-pool.service';
 import { TjspCrawlJob } from './jobs/tjsp-crawl.job';
 import { TjrjCrawlJob } from './jobs/tjrj-crawl.job';
+import { TjscCrawlJob } from './jobs/tjsc-crawl.job';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [AuthModule],
-  providers: [CrawlerService, BrowserPoolService, TjspCrawlJob, TjrjCrawlJob],
+  providers: [CrawlerService, BrowserPoolService, TjspCrawlJob, TjrjCrawlJob, TjscCrawlJob],
   controllers: [CrawlerController],
   exports: [CrawlerService],
 })
