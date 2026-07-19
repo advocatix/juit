@@ -9,12 +9,14 @@ import { TjrjEjurisAdapter, TERMOS_PADRAO_TJRJ } from './adapters/tjrj-ejuris.ad
 import { TjscBuscaAdapter, TERMOS_PADRAO_TJSC } from './adapters/tjsc-busca.adapter';
 import { TjrsSolrAdapter, TERMOS_PADRAO_TJRS } from './adapters/tjrs-solr.adapter';
 import { TjbaGraphqlAdapter, TERMOS_PADRAO_TJBA } from './adapters/tjba-graphql.adapter';
+import { TjdfJurisdfAdapter, TERMOS_PADRAO_TJDF } from './adapters/tjdf-jurisdf.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
 import { ExecutarCrawlTjscDto } from './dto/executar-crawl-tjsc.dto';
 import { ExecutarCrawlTjrsDto } from './dto/executar-crawl-tjrs.dto';
 import { ExecutarCrawlTjbaDto } from './dto/executar-crawl-tjba.dto';
+import { ExecutarCrawlTjdfDto } from './dto/executar-crawl-tjdf.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -159,6 +161,27 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJBA');
+  }
+
+  /**
+   * Dispara um crawl manual do TJDFT. API REST nativa (JurisDF), sem
+   * CAPTCHA, sem exigência de browser.
+   */
+  @Post('tjdf/executar')
+  async executarTjdf(@Body() dto: ExecutarCrawlTjdfDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJDFT' },
+      update: {},
+      create: { sigla: 'TJDFT', nome: 'Tribunal de Justiça do Distrito Federal e dos Territórios', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjdfJurisdfAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJDF,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJDFT');
   }
 }
 
