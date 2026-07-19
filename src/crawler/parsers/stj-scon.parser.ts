@@ -56,7 +56,7 @@ export function parseResultadosScon(html: string): StjSconResultado[] {
 
 /** `.docTexto` costuma ter `<br>` como separador de linha — `.text()` puro
  *  do cheerio concatena sem espaço, grudando palavras. */
-function textoComQuebrasDeLinha($el: cheerio.Cheerio): string {
+function textoComQuebrasDeLinha($el: any): string {
   const html = $el.html() ?? '';
   const comQuebras = html.replace(/<br\s*\/?>/gi, '\n');
   const texto = cheerio.load(`<div>${comQuebras}</div>`)('div').text();
