@@ -16,6 +16,7 @@ import { TjceSjurisAdapter, TERMOS_PADRAO_TJCE } from './adapters/tjce-sjuris.ad
 import { TjesSolrAdapter, TERMOS_PADRAO_TJES } from './adapters/tjes-solr.adapter';
 import { TjrnElasticAdapter, TERMOS_PADRAO_TJRN } from './adapters/tjrn-elastic.adapter';
 import { TjtoConsultaAdapter, TERMOS_PADRAO_TJTO } from './adapters/tjto-consulta.adapter';
+import { TjpiConsultaAdapter, TERMOS_PADRAO_TJPI } from './adapters/tjpi-consulta.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -29,6 +30,7 @@ import { ExecutarCrawlTjceDto } from './dto/executar-crawl-tjce.dto';
 import { ExecutarCrawlTjesDto } from './dto/executar-crawl-tjes.dto';
 import { ExecutarCrawlTjrnDto } from './dto/executar-crawl-tjrn.dto';
 import { ExecutarCrawlTjtoDto } from './dto/executar-crawl-tjto.dto';
+import { ExecutarCrawlTjpiDto } from './dto/executar-crawl-tjpi.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -323,6 +325,29 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJTO');
+  }
+
+  /**
+   * Dispara um crawl manual do TJPI. JusPI (`jurisprudences/search`),
+   * HTML renderizado server-side, sem CAPTCHA, sem exigência de
+   * browser. Filtra `tipo=Acórdão` (exclui Decisões Terminativas e
+   * Súmulas).
+   */
+  @Post('tjpi/executar')
+  async executarTjpi(@Body() dto: ExecutarCrawlTjpiDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJPI' },
+      update: {},
+      create: { sigla: 'TJPI', nome: 'Tribunal de Justiça do Piauí', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjpiConsultaAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJPI,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJPI');
   }
 }
 
