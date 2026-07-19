@@ -19,6 +19,7 @@ import { TjtoConsultaAdapter, TERMOS_PADRAO_TJTO } from './adapters/tjto-consult
 import { TjpiConsultaAdapter, TERMOS_PADRAO_TJPI } from './adapters/tjpi-consulta.adapter';
 import { TjalCjsgAdapter } from './adapters/tjal-cjsg.adapter';
 import { TjrrJurisAdapter, TERMOS_PADRAO_TJRR } from './adapters/tjrr-juris.adapter';
+import { TjacCjsgAdapter } from './adapters/tjac-cjsg.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -35,6 +36,7 @@ import { ExecutarCrawlTjtoDto } from './dto/executar-crawl-tjto.dto';
 import { ExecutarCrawlTjpiDto } from './dto/executar-crawl-tjpi.dto';
 import { ExecutarCrawlTjalDto } from './dto/executar-crawl-tjal.dto';
 import { ExecutarCrawlTjrrDto } from './dto/executar-crawl-tjrr.dto';
+import { ExecutarCrawlTjacDto } from './dto/executar-crawl-tjac.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -402,6 +404,34 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJRR');
+  }
+
+  /**
+   * Dispara um crawl manual do TJAC. Mesmo e-SAJ do TJSP/TJMS/TJAM/TJAL
+   * (mesma estrutura de HTML, mesmo parser) — busca por período de
+   * julgamento. Funciona normalmente via Browserbase (confirmado ao
+   * vivo, mesmo padrão do TJAL).
+   */
+  @Post('tjac/executar')
+  async executarTjac(@Body() dto: ExecutarCrawlTjacDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJAC' },
+      update: {},
+      create: { sigla: 'TJAC', nome: 'Tribunal de Justiça do Acre', instancia: 'TRIBUNAL' },
+    });
+
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+
+    const adapter = new TjacCjsgAdapter(this.browserPool, {
+      dataJulgamentoInicio: dto.dataInicio ? parseDataBr(dto.dataInicio) : ontem,
+      dataJulgamentoFim: dto.dataFim ? parseDataBr(dto.dataFim) : hoje,
+      maxPaginas: dto.maxPaginas ?? 3,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJAC');
   }
 }
 
