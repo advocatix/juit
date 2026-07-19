@@ -6,29 +6,23 @@ import { BrowserPoolService } from './browser-pool.service';
 import { TjspCjsgAdapter } from './adapters/tjsp-cjsg.adapter';
 import { StjSconAdapter, TERMOS_PADRAO_STJ } from './adapters/stj-scon.adapter';
 import { TjrjEjurisAdapter, TERMOS_PADRAO_TJRJ } from './adapters/tjrj-ejuris.adapter';
-import { TjprJurisAdapter, TERMOS_PADRAO_TJPR } from './adapters/tjpr-juris.adapter';
 import { TjscBuscaAdapter, TERMOS_PADRAO_TJSC } from './adapters/tjsc-busca.adapter';
 import { TjrsSolrAdapter, TERMOS_PADRAO_TJRS } from './adapters/tjrs-solr.adapter';
-import { TjmsCjsgAdapter } from './adapters/tjms-cjsg.adapter';
 import { TjbaGraphqlAdapter, TERMOS_PADRAO_TJBA } from './adapters/tjba-graphql.adapter';
 import { TjdfJurisdfAdapter, TERMOS_PADRAO_TJDF } from './adapters/tjdf-jurisdf.adapter';
 import { TjpbJurispbAdapter, TERMOS_PADRAO_TJPB } from './adapters/tjpb-jurispb.adapter';
 import { TjmtHellsgateAdapter, TERMOS_PADRAO_TJMT } from './adapters/tjmt-hellsgate.adapter';
-import { TjamCjsgAdapter } from './adapters/tjam-cjsg.adapter';
 import { TjceSjurisAdapter, TERMOS_PADRAO_TJCE } from './adapters/tjce-sjuris.adapter';
 import { TjesSolrAdapter, TERMOS_PADRAO_TJES } from './adapters/tjes-solr.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
-import { ExecutarCrawlTjprDto } from './dto/executar-crawl-tjpr.dto';
 import { ExecutarCrawlTjscDto } from './dto/executar-crawl-tjsc.dto';
 import { ExecutarCrawlTjrsDto } from './dto/executar-crawl-tjrs.dto';
-import { ExecutarCrawlTjmsDto } from './dto/executar-crawl-tjms.dto';
 import { ExecutarCrawlTjbaDto } from './dto/executar-crawl-tjba.dto';
 import { ExecutarCrawlTjdfDto } from './dto/executar-crawl-tjdf.dto';
 import { ExecutarCrawlTjpbDto } from './dto/executar-crawl-tjpb.dto';
 import { ExecutarCrawlTjmtDto } from './dto/executar-crawl-tjmt.dto';
-import { ExecutarCrawlTjamDto } from './dto/executar-crawl-tjam.dto';
 import { ExecutarCrawlTjceDto } from './dto/executar-crawl-tjce.dto';
 import { ExecutarCrawlTjesDto } from './dto/executar-crawl-tjes.dto';
 
@@ -114,29 +108,6 @@ export class CrawlerController {
   }
 
   /**
-   * Dispara um crawl manual do TJPR. Sem CAPTCHA de nenhum tipo, mas a
-   * busca via Browserbase falha (volta pro form vazio) por um motivo
-   * ainda não identificado — funciona só com Chrome local. Pausado, não
-   * rodar em produção até resolver isso (ver memória do projeto).
-   */
-  @Post('tjpr/executar')
-  async executarTjpr(@Body() dto: ExecutarCrawlTjprDto) {
-    await this.prisma.tribunal.upsert({
-      where: { sigla: 'TJPR' },
-      update: {},
-      create: { sigla: 'TJPR', nome: 'Tribunal de Justiça do Paraná', instancia: 'TRIBUNAL' },
-    });
-
-    const adapter = new TjprJurisAdapter(this.browserPool, {
-      termos: dto.termos ?? TERMOS_PADRAO_TJPR,
-      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 1,
-    });
-
-    this.crawler.registrarAdapter(adapter);
-    return this.crawler.executarCrawl('TJPR');
-  }
-
-  /**
    * Dispara um crawl manual do TJSC. Único tribunal sem CAPTCHA nem
    * exigência de browser — roda via HTTP puro, muito mais barato. Tem um
    * WAF por IP em vez disso (ver tjsc-busca.adapter.ts).
@@ -177,34 +148,6 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJRS');
-  }
-
-  /**
-   * Dispara um crawl manual do TJMS. Mesmo e-SAJ do TJSP (mesma
-   * estrutura de HTML, mesmo parser) — busca por período de julgamento.
-   * Via Browserbase o goto trava com ERR_TIMED_OUT (funciona só com
-   * Chrome local). Pausado, mesmo tratamento do TJPR.
-   */
-  @Post('tjms/executar')
-  async executarTjms(@Body() dto: ExecutarCrawlTjmsDto) {
-    await this.prisma.tribunal.upsert({
-      where: { sigla: 'TJMS' },
-      update: {},
-      create: { sigla: 'TJMS', nome: 'Tribunal de Justiça do Mato Grosso do Sul', instancia: 'TRIBUNAL' },
-    });
-
-    const hoje = new Date();
-    const ontem = new Date(hoje);
-    ontem.setDate(ontem.getDate() - 1);
-
-    const adapter = new TjmsCjsgAdapter(this.browserPool, {
-      dataJulgamentoInicio: dto.dataInicio ? parseDataBr(dto.dataInicio) : ontem,
-      dataJulgamentoFim: dto.dataFim ? parseDataBr(dto.dataFim) : hoje,
-      maxPaginas: dto.maxPaginas ?? 3,
-    });
-
-    this.crawler.registrarAdapter(adapter);
-    return this.crawler.executarCrawl('TJMS');
   }
 
   /**
@@ -290,36 +233,6 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJMT');
-  }
-
-  /**
-   * Dispara um crawl manual do TJAM. Mesmo e-SAJ do TJSP/TJMS (mesma
-   * estrutura de HTML, mesmo parser) — busca por período de julgamento.
-   * Diferente do TJSP, valida que o intervalo não pode passar de 1 ano.
-   * Mesmo respeitando isso, a busca retorna zero resultados sem
-   * mensagem de erro — comportamento não resolvido, não é problema de
-   * infraestrutura (mesmo resultado local e via Browserbase). Pausado.
-   */
-  @Post('tjam/executar')
-  async executarTjam(@Body() dto: ExecutarCrawlTjamDto) {
-    await this.prisma.tribunal.upsert({
-      where: { sigla: 'TJAM' },
-      update: {},
-      create: { sigla: 'TJAM', nome: 'Tribunal de Justiça do Amazonas', instancia: 'TRIBUNAL' },
-    });
-
-    const hoje = new Date();
-    const ontem = new Date(hoje);
-    ontem.setDate(ontem.getDate() - 1);
-
-    const adapter = new TjamCjsgAdapter(this.browserPool, {
-      dataJulgamentoInicio: dto.dataInicio ? parseDataBr(dto.dataInicio) : ontem,
-      dataJulgamentoFim: dto.dataFim ? parseDataBr(dto.dataFim) : hoje,
-      maxPaginas: dto.maxPaginas ?? 3,
-    });
-
-    this.crawler.registrarAdapter(adapter);
-    return this.crawler.executarCrawl('TJAM');
   }
 
   /**
