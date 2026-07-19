@@ -1,4 +1,5 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrawlerService } from './crawler.service';
@@ -20,6 +21,8 @@ import { TjpiConsultaAdapter, TERMOS_PADRAO_TJPI } from './adapters/tjpi-consult
 import { TjalCjsgAdapter } from './adapters/tjal-cjsg.adapter';
 import { TjrrJurisAdapter, TERMOS_PADRAO_TJRR } from './adapters/tjrr-juris.adapter';
 import { TjacCjsgAdapter } from './adapters/tjac-cjsg.adapter';
+import { FalcaoNacionalAdapter, TERMOS_PADRAO_FALCAO } from './adapters/falcao-nacional.adapter';
+import { TRIBUNAIS_FALCAO } from './adapters/falcao-tribunais';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -37,6 +40,7 @@ import { ExecutarCrawlTjpiDto } from './dto/executar-crawl-tjpi.dto';
 import { ExecutarCrawlTjalDto } from './dto/executar-crawl-tjal.dto';
 import { ExecutarCrawlTjrrDto } from './dto/executar-crawl-tjrr.dto';
 import { ExecutarCrawlTjacDto } from './dto/executar-crawl-tjac.dto';
+import { ExecutarCrawlFalcaoDto } from './dto/executar-crawl-falcao.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -311,6 +315,7 @@ export class CrawlerController {
     return this.crawler.executarCrawl('TJRN');
   }
 
+
   /**
    * Dispara um crawl manual do TJTO. Portal "Jurisprudência 4.0"
    * (`consulta.php`), HTML renderizado server-side, sem CAPTCHA, sem
@@ -432,6 +437,106 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJAC');
+  }
+
+  /**
+   * Dispara um crawl manual do FALCÃO — repositório NACIONAL da Justiça
+   * do Trabalho (TST + 24 TRTs + CSJT), unificado numa API só. Sem
+   * CAPTCHA, mas bloqueia HTTP puro (WAF sensível a fingerprint) — usa
+   * BrowserPoolService (ver falcao-nacional.adapter.ts).
+   *
+   * Diferente de todos os outros adapters (1 tribunal por chamada),
+   * cada documento retornado já vem com o tribunal de origem
+   * (TRT3, TST, CSJT...), então NÃO passa pelo
+   * `CrawlerService.executarCrawl()` genérico — grava direto aqui,
+   * upsertando o Tribunal real por item e um Tribunal pseudo "FALCAO"
+   * só pra dono do CrawlJob (rastreio agregado do total da execução).
+   */
+  @Post('falcao/executar')
+  async executarFalcao(@Body() dto: ExecutarCrawlFalcaoDto) {
+    const tribunalJob = await this.prisma.tribunal.upsert({
+      where: { sigla: 'FALCAO' },
+      update: {},
+      create: {
+        sigla: 'FALCAO',
+        nome: 'FALCÃO — Repositório Nacional de Jurisprudência da Justiça do Trabalho',
+        instancia: 'NACIONAL',
+      },
+    });
+
+    const job = await this.prisma.crawlJob.create({
+      data: { tribunalId: tribunalJob.id, status: 'RODANDO', iniciadoEm: new Date() },
+    });
+
+    const adapter = new FalcaoNacionalAdapter(this.browserPool, {
+      termos: dto.termos ?? TERMOS_PADRAO_FALCAO,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 3,
+    });
+
+    let coletados = 0;
+    let novos = 0;
+    const tribunaisCache = new Map<string, string>();
+
+    try {
+      for await (const item of adapter.coletar()) {
+        coletados++;
+
+        const siglaReal = item.tribunalSigla;
+        if (!siglaReal || !TRIBUNAIS_FALCAO[siglaReal]) continue;
+
+        let tribunalId = tribunaisCache.get(siglaReal);
+        if (!tribunalId) {
+          const info = TRIBUNAIS_FALCAO[siglaReal];
+          const tribunalReal = await this.prisma.tribunal.upsert({
+            where: { sigla: siglaReal },
+            update: {},
+            create: { sigla: siglaReal, nome: info.nome, instancia: info.instancia },
+          });
+          tribunalId = tribunalReal.id;
+          tribunaisCache.set(siglaReal, tribunalId);
+        }
+
+        const hashConteudo = createHash('sha256')
+          .update(item.ementa ?? item.numeroProcesso ?? '')
+          .digest('hex');
+
+        const existente = await this.prisma.precedente.findUnique({ where: { hashConteudo } });
+        if (existente) continue;
+
+        await this.prisma.precedente.create({
+          data: {
+            tribunalId,
+            fonte: 'FALCAO',
+            hashConteudo,
+            numeroProcesso: item.numeroProcesso,
+            orgaoJulgador: item.orgaoJulgador,
+            relator: item.relator,
+            dataJulgamento: item.dataJulgamento,
+            area: item.area,
+            ementa: item.ementa,
+          },
+        });
+        novos++;
+      }
+
+      await this.prisma.crawlJob.update({
+        where: { id: job.id },
+        data: { status: 'CONCLUIDO', concluidoEm: new Date(), itensColetados: coletados, itensNovos: novos },
+      });
+    } catch (err: any) {
+      await this.prisma.crawlJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'FALHOU',
+          erro: err.message,
+          concluidoEm: new Date(),
+          itensColetados: coletados,
+          itensNovos: novos,
+        },
+      });
+    }
+
+    return { jobId: job.id };
   }
 }
 
