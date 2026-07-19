@@ -79,13 +79,18 @@ npm start
 ```
 
 **Opção B — rodar como serviço com [pm2](https://pm2.keymetrics.io/)**
-(sobrevive a reinício da máquina se configurado com `pm2 startup`):
+(sobrevive a reinício da máquina). No Windows, `pm2 startup` (pensado
+pra systemd/launchd) não funciona sozinho — use o pacote
+`pm2-windows-startup`, que registra o pm2 pra subir automaticamente
+via Agendador de Tarefas do Windows:
 ```powershell
-npm install -g pm2
-pm2 start dist/src/main.js --name juit-worker
+npm install -g pm2 pm2-windows-startup
+pm2-startup install
+pm2 start dist/main.js --name juit-worker
 pm2 save
-pm2 startup
 ```
+Depois disso, reiniciar o PC não derruba o worker — o Windows sobe o
+pm2 sozinho, que por sua vez sobe de novo o `juit-worker` salvo.
 
 ## Não é grave se a máquina cair um dia
 
