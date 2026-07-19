@@ -16,12 +16,12 @@ export class TjrrCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (20h UTC / 17h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (9h40 UTC / 6h40 BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS, TJBA, TJDFT, TJPB, TJMT, TJCE, TJES, TJRN, TJTO, TJPI e
    * TJAL). Usa BrowserPoolService (JSF/PrimeFaces, sem CAPTCHA, mas
    * app stateful) — busca por termo amplo, um por área do direito.
    */
-  @Cron('0 20 * * *')
+  @Cron('40 9 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJRR (Juris)');
 

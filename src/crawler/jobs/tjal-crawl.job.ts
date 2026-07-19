@@ -16,12 +16,12 @@ export class TjalCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (19h UTC / 16h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (9h20 UTC / 6h20 BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS, TJBA, TJDFT, TJPB, TJMT, TJCE, TJES, TJRN, TJTO e TJPI). Usa
    * BrowserPoolService (mesmo e-SAJ do TJSP, reCAPTCHA v3) — busca por
    * período de julgamento das últimas 24h.
    */
-  @Cron('0 19 * * *')
+  @Cron('20 9 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJAL (CJSG)');
 

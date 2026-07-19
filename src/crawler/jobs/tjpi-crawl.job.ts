@@ -14,11 +14,11 @@ export class TjpiCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (18h UTC / 15h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (9h UTC / 6h BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS, TJBA, TJDFT, TJPB, TJMT, TJCE, TJES, TJRN e TJTO). Não usa
    * BrowserPoolService — roda via HTTP puro contra o JusPI.
    */
-  @Cron('0 18 * * *')
+  @Cron('0 9 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJPI (JusPI)');
 

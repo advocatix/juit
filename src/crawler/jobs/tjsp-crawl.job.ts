@@ -16,15 +16,22 @@ export class TjspCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (6h UTC = 3h em Brasília) coletando o que foi
+   * Roda toda madrugada (5h UTC = 2h em Brasília) coletando o que foi
    * julgado no dia anterior — dá tempo do TJSP publicar as decisões do
    * dia sem concorrer com o horário comercial. Diferente do dou-monitor
    * (que roda 1x/dia às 9h BRT porque só precisa do boletim do dia), o
    * TJSP tem muita coisa por página (20/pagina, milhares por dia), então
    * maxPaginas alto o bastante para não deixar coisa pra tras num dia
    * de volume normal, mas com trava de seguranca.
+   *
+   * Horário reajustado em 2026-07-19: os crons foram sendo escalonados
+   * de 1h em 1h em UTC sem reconferir a conversão pra BRT (Brasil =
+   * UTC-3, sem horário de verão) — isso empurrou os últimos tribunais
+   * pra dentro do horário comercial brasileiro, o oposto do motivo
+   * original deste horário. Agora os 17 crons ficam comprimidos entre
+   * 2h e 7h20 BRT, escalonados de 20 em 20 minutos.
    */
-  @Cron('0 6 * * *')
+  @Cron('0 5 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJSP (CJSG)');
 

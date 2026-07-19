@@ -14,11 +14,11 @@ export class TjceCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (14h UTC / 11h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (7h40 UTC / 4h40 BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS, TJBA, TJDFT, TJPB e TJMT). Não usa BrowserPoolService — roda
    * via HTTP puro contra a API REST do SJURIS.
    */
-  @Cron('0 14 * * *')
+  @Cron('40 7 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJCE (SJURIS)');
 

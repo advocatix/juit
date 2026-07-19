@@ -14,12 +14,12 @@ export class TjtoCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (17h UTC / 14h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (8h40 UTC / 5h40 BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS, TJBA, TJDFT, TJPB, TJMT, TJCE, TJES e TJRN). Não usa
    * BrowserPoolService — roda via HTTP puro contra o portal
    * "Jurisprudência 4.0" do TJTO.
    */
-  @Cron('0 17 * * *')
+  @Cron('40 8 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJTO (Jurisprudencia 4.0)');
 

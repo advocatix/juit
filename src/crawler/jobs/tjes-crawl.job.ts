@@ -14,11 +14,11 @@ export class TjesCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (15h UTC / 12h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (8h UTC / 5h BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS, TJBA, TJDFT, TJPB, TJMT e TJCE). Não usa BrowserPoolService —
    * roda via HTTP puro contra a API própria sobre Solr do TJES.
    */
-  @Cron('0 15 * * *')
+  @Cron('0 8 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJES (Solr)');
 

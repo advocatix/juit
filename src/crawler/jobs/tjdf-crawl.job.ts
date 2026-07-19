@@ -14,11 +14,11 @@ export class TjdfCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (11h UTC / 8h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (6h40 UTC / 3h40 BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS e TJBA). Não usa BrowserPoolService — roda via HTTP puro
    * contra a API REST do JurisDF.
    */
-  @Cron('0 11 * * *')
+  @Cron('40 6 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJDFT (JurisDF)');
 

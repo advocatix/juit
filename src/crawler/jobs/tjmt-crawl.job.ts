@@ -14,11 +14,11 @@ export class TjmtCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (13h UTC / 10h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (7h20 UTC / 4h20 BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS, TJBA, TJDFT e TJPB). Não usa BrowserPoolService — roda via
    * HTTP puro contra a API REST do Portal Jurisprudência do TJMT.
    */
-  @Cron('0 13 * * *')
+  @Cron('20 7 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJMT (Hellsgate)');
 

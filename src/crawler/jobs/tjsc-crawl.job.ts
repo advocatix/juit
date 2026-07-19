@@ -14,12 +14,12 @@ export class TjscCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (8h UTC / 5h BRT, depois de TJSP e TJRJ). Não
+   * Roda toda madrugada (5h40 UTC / 2h40 BRT, depois de TJSP e TJRJ). Não
    * precisa de BrowserPoolService — o TJSC é o único tribunal que
    * responde a requisição HTTP pura, então não disputa sessões da
    * Browserbase com os outros crons.
    */
-  @Cron('0 8 * * *')
+  @Cron('40 5 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJSC (busca.tjsc.jus.br)');
 

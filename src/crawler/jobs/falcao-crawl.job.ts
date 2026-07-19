@@ -15,14 +15,14 @@ export class FalcaoCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (22h UTC / 19h BRT, depois de todos os
-   * tribunais estaduais — último era TJAC às 21h UTC). Usa
+   * Roda toda madrugada (10h20 UTC / 7h20 BRT, depois de todos os
+   * tribunais estaduais — último era TJAC às 10h UTC). Usa
    * BrowserPoolService (WAF sensível a fingerprint) — busca por termo
    * amplo, um por área do direito. Não usa CrawlerService.executarCrawl
    * genérico (ver falcao-runner.ts): grava direto, upsertando o
    * Tribunal real por item (TST/TRT1..24/CSJT).
    */
-  @Cron('0 22 * * *')
+  @Cron('20 10 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do FALCAO (Justica do Trabalho nacional)');
 

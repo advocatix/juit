@@ -14,12 +14,12 @@ export class TjrnCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (16h UTC / 13h BRT, depois de TJSP, TJRJ, TJSC,
+   * Roda toda madrugada (8h20 UTC / 5h20 BRT, depois de TJSP, TJRJ, TJSC,
    * TJRS, TJBA, TJDFT, TJPB, TJMT, TJCE e TJES). Não usa
    * BrowserPoolService — roda via HTTP puro contra a API de
    * jurisprudência (Elasticsearch) do TJRN.
    */
-  @Cron('0 16 * * *')
+  @Cron('20 8 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJRN (Elasticsearch)');
 

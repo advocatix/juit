@@ -14,11 +14,11 @@ export class TjbaCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (10h UTC / 7h BRT, depois de TJSP, TJRJ, TJSC e
+   * Roda toda madrugada (6h20 UTC / 3h20 BRT, depois de TJSP, TJRJ, TJSC e
    * TJRS). Não usa BrowserPoolService — roda via HTTP puro contra a API
    * GraphQL do TJBA.
    */
-  @Cron('0 10 * * *')
+  @Cron('20 6 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJBA (GraphQL)');
 

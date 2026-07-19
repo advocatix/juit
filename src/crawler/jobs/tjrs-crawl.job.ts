@@ -14,11 +14,11 @@ export class TjrsCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (9h UTC / 6h BRT, depois de TJSP, TJRJ e TJSC).
+   * Roda toda madrugada (6h UTC / 3h BRT, depois de TJSP, TJRJ e TJSC).
    * Não usa BrowserPoolService — igual ao TJSC, o TJRS roda via HTTP
    * puro contra o backend Solr.
    */
-  @Cron('0 9 * * *')
+  @Cron('0 6 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJRS (Solr)');
 

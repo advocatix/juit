@@ -16,14 +16,14 @@ export class TjrjCrawlJob {
   ) {}
 
   /**
-   * Roda toda madrugada (7h UTC / 4h BRT, uma hora depois do TJSP para
+   * Roda toda madrugada (5h20 UTC / 2h20 BRT, 20min depois do TJSP para
    * não disputar sessões da Browserbase ao mesmo tempo). Diferente do
    * TJSP, o e-JURIS não tem filtro por data — a coleta é por termo
    * amplo por área (TERMOS_PADRAO_TJRJ), então o "incremental" real vem
    * do dedupe por hashConteudo no CrawlerService, não de um range de
    * data explícito.
    */
-  @Cron('0 7 * * *')
+  @Cron('20 5 * * *')
   async executarCrawlDiario(): Promise<void> {
     this.logger.log('Iniciando crawl diario do TJRJ (e-JURIS)');
 
