@@ -6,15 +6,19 @@ import { BrowserPoolService } from './browser-pool.service';
 import { TjspCjsgAdapter } from './adapters/tjsp-cjsg.adapter';
 import { StjSconAdapter, TERMOS_PADRAO_STJ } from './adapters/stj-scon.adapter';
 import { TjrjEjurisAdapter, TERMOS_PADRAO_TJRJ } from './adapters/tjrj-ejuris.adapter';
+import { TjprJurisAdapter, TERMOS_PADRAO_TJPR } from './adapters/tjpr-juris.adapter';
 import { TjscBuscaAdapter, TERMOS_PADRAO_TJSC } from './adapters/tjsc-busca.adapter';
 import { TjrsSolrAdapter, TERMOS_PADRAO_TJRS } from './adapters/tjrs-solr.adapter';
+import { TjmsCjsgAdapter } from './adapters/tjms-cjsg.adapter';
 import { TjbaGraphqlAdapter, TERMOS_PADRAO_TJBA } from './adapters/tjba-graphql.adapter';
 import { TjdfJurisdfAdapter, TERMOS_PADRAO_TJDF } from './adapters/tjdf-jurisdf.adapter';
 import { TjpbJurispbAdapter, TERMOS_PADRAO_TJPB } from './adapters/tjpb-jurispb.adapter';
 import { TjmtHellsgateAdapter, TERMOS_PADRAO_TJMT } from './adapters/tjmt-hellsgate.adapter';
+import { TjamCjsgAdapter } from './adapters/tjam-cjsg.adapter';
 import { TjceSjurisAdapter, TERMOS_PADRAO_TJCE } from './adapters/tjce-sjuris.adapter';
 import { TjesSolrAdapter, TERMOS_PADRAO_TJES } from './adapters/tjes-solr.adapter';
 import { TjrnElasticAdapter, TERMOS_PADRAO_TJRN } from './adapters/tjrn-elastic.adapter';
+import { TjroElasticAdapter, TERMOS_PADRAO_TJRO } from './adapters/tjro-elastic.adapter';
 import { TjtoConsultaAdapter, TERMOS_PADRAO_TJTO } from './adapters/tjto-consulta.adapter';
 import { TjpiConsultaAdapter, TERMOS_PADRAO_TJPI } from './adapters/tjpi-consulta.adapter';
 import { TjalCjsgAdapter } from './adapters/tjal-cjsg.adapter';
@@ -22,24 +26,31 @@ import { TjrrJurisAdapter, TERMOS_PADRAO_TJRR } from './adapters/tjrr-juris.adap
 import { TjacCjsgAdapter } from './adapters/tjac-cjsg.adapter';
 import { TERMOS_PADRAO_FALCAO } from './adapters/falcao-nacional.adapter';
 import { executarFalcaoCrawl } from './adapters/falcao-runner';
+import { TERMOS_PADRAO_CJF } from './adapters/cjf-unificada.adapter';
+import { executarCjfCrawl } from './adapters/cjf-runner';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
+import { ExecutarCrawlTjprDto } from './dto/executar-crawl-tjpr.dto';
 import { ExecutarCrawlTjscDto } from './dto/executar-crawl-tjsc.dto';
 import { ExecutarCrawlTjrsDto } from './dto/executar-crawl-tjrs.dto';
+import { ExecutarCrawlTjmsDto } from './dto/executar-crawl-tjms.dto';
 import { ExecutarCrawlTjbaDto } from './dto/executar-crawl-tjba.dto';
 import { ExecutarCrawlTjdfDto } from './dto/executar-crawl-tjdf.dto';
 import { ExecutarCrawlTjpbDto } from './dto/executar-crawl-tjpb.dto';
 import { ExecutarCrawlTjmtDto } from './dto/executar-crawl-tjmt.dto';
+import { ExecutarCrawlTjamDto } from './dto/executar-crawl-tjam.dto';
 import { ExecutarCrawlTjceDto } from './dto/executar-crawl-tjce.dto';
 import { ExecutarCrawlTjesDto } from './dto/executar-crawl-tjes.dto';
 import { ExecutarCrawlTjrnDto } from './dto/executar-crawl-tjrn.dto';
+import { ExecutarCrawlTjroDto } from './dto/executar-crawl-tjro.dto';
 import { ExecutarCrawlTjtoDto } from './dto/executar-crawl-tjto.dto';
 import { ExecutarCrawlTjpiDto } from './dto/executar-crawl-tjpi.dto';
 import { ExecutarCrawlTjalDto } from './dto/executar-crawl-tjal.dto';
 import { ExecutarCrawlTjrrDto } from './dto/executar-crawl-tjrr.dto';
 import { ExecutarCrawlTjacDto } from './dto/executar-crawl-tjac.dto';
 import { ExecutarCrawlFalcaoDto } from './dto/executar-crawl-falcao.dto';
+import { ExecutarCrawlCjfDto } from './dto/executar-crawl-cjf.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -123,6 +134,29 @@ export class CrawlerController {
   }
 
   /**
+   * Dispara um crawl manual do TJPR. Sem CAPTCHA de nenhum tipo, mas a
+   * busca via Browserbase falha (volta pro form vazio) por um motivo
+   * ainda não identificado — funciona só com Chrome local. Pausado, não
+   * rodar em produção até resolver isso (ver memória do projeto).
+   */
+  @Post('tjpr/executar')
+  async executarTjpr(@Body() dto: ExecutarCrawlTjprDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJPR' },
+      update: {},
+      create: { sigla: 'TJPR', nome: 'Tribunal de Justiça do Paraná', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjprJurisAdapter(this.browserPool, {
+      termos: dto.termos ?? TERMOS_PADRAO_TJPR,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 1,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJPR');
+  }
+
+  /**
    * Dispara um crawl manual do TJSC. Único tribunal sem CAPTCHA nem
    * exigência de browser — roda via HTTP puro, muito mais barato. Tem um
    * WAF por IP em vez disso (ver tjsc-busca.adapter.ts).
@@ -163,6 +197,34 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJRS');
+  }
+
+  /**
+   * Dispara um crawl manual do TJMS. Mesmo e-SAJ do TJSP (mesma
+   * estrutura de HTML, mesmo parser) — busca por período de julgamento.
+   * Via Browserbase o goto trava com ERR_TIMED_OUT (funciona só com
+   * Chrome local). Pausado, mesmo tratamento do TJPR.
+   */
+  @Post('tjms/executar')
+  async executarTjms(@Body() dto: ExecutarCrawlTjmsDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJMS' },
+      update: {},
+      create: { sigla: 'TJMS', nome: 'Tribunal de Justiça do Mato Grosso do Sul', instancia: 'TRIBUNAL' },
+    });
+
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+
+    const adapter = new TjmsCjsgAdapter(this.browserPool, {
+      dataJulgamentoInicio: dto.dataInicio ? parseDataBr(dto.dataInicio) : ontem,
+      dataJulgamentoFim: dto.dataFim ? parseDataBr(dto.dataFim) : hoje,
+      maxPaginas: dto.maxPaginas ?? 3,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJMS');
   }
 
   /**
@@ -251,6 +313,36 @@ export class CrawlerController {
   }
 
   /**
+   * Dispara um crawl manual do TJAM. Mesmo e-SAJ do TJSP/TJMS (mesma
+   * estrutura de HTML, mesmo parser) — busca por período de julgamento.
+   * Diferente do TJSP, valida que o intervalo não pode passar de 1 ano.
+   * Mesmo respeitando isso, a busca retorna zero resultados sem
+   * mensagem de erro — comportamento não resolvido, não é problema de
+   * infraestrutura (mesmo resultado local e via Browserbase). Pausado.
+   */
+  @Post('tjam/executar')
+  async executarTjam(@Body() dto: ExecutarCrawlTjamDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJAM' },
+      update: {},
+      create: { sigla: 'TJAM', nome: 'Tribunal de Justiça do Amazonas', instancia: 'TRIBUNAL' },
+    });
+
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+
+    const adapter = new TjamCjsgAdapter(this.browserPool, {
+      dataJulgamentoInicio: dto.dataInicio ? parseDataBr(dto.dataInicio) : ontem,
+      dataJulgamentoFim: dto.dataFim ? parseDataBr(dto.dataFim) : hoje,
+      maxPaginas: dto.maxPaginas ?? 3,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJAM');
+  }
+
+  /**
    * Dispara um crawl manual do TJCE. SJURIS, API REST nativa (sistema
    * novo lançado out/2023), sem CAPTCHA, sem exigência de browser.
    */
@@ -314,6 +406,30 @@ export class CrawlerController {
     return this.crawler.executarCrawl('TJRN');
   }
 
+
+  /**
+   * Dispara um crawl manual do TJRO. Elasticsearch nativo por trás de
+   * juris-back.tjro.jus.br, mas atrás de um F5 BIG-IP com desafio JS
+   * (TSPD) — a API rejeita HTTP puro (resposta com header inválido),
+   * então usamos BrowserPoolService e chamamos a API via fetch() dentro
+   * da própria página (ver tjro-elastic.adapter.ts).
+   */
+  @Post('tjro/executar')
+  async executarTjro(@Body() dto: ExecutarCrawlTjroDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJRO' },
+      update: {},
+      create: { sigla: 'TJRO', nome: 'Tribunal de Justiça de Rondônia', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjroElasticAdapter(this.browserPool, {
+      termos: dto.termos ?? TERMOS_PADRAO_TJRO,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJRO');
+  }
 
   /**
    * Dispara um crawl manual do TJTO. Portal "Jurisprudência 4.0"
@@ -455,6 +571,23 @@ export class CrawlerController {
   async executarFalcao(@Body() dto: ExecutarCrawlFalcaoDto) {
     return executarFalcaoCrawl(this.prisma, this.browserPool, {
       termos: dto.termos ?? TERMOS_PADRAO_FALCAO,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 3,
+    });
+  }
+
+  /**
+   * Dispara um crawl manual da Jurisprudência Unificada do CJF — cruza
+   * STF + STJ + TNU + TRF1..TRF5 numa API só (JSF/PrimeFaces). Sem
+   * CAPTCHA. Achado importante: o STJ aqui responde normalmente,
+   * contornando o bloqueio de Cloudflare Turnstile do SCON direto
+   * (`scon.stj.jus.br`, ver stj-scon.adapter.ts). Mesmo padrão
+   * multi-tribunal do FALCÃO — não passa pelo
+   * `CrawlerService.executarCrawl()` genérico (ver cjf-runner.ts).
+   */
+  @Post('cjf/executar')
+  async executarCjf(@Body() dto: ExecutarCrawlCjfDto) {
+    return executarCjfCrawl(this.prisma, this.browserPool, {
+      termos: dto.termos ?? TERMOS_PADRAO_CJF,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 3,
     });
   }
