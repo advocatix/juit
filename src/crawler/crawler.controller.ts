@@ -10,6 +10,7 @@ import { TjscBuscaAdapter, TERMOS_PADRAO_TJSC } from './adapters/tjsc-busca.adap
 import { TjrsSolrAdapter, TERMOS_PADRAO_TJRS } from './adapters/tjrs-solr.adapter';
 import { TjbaGraphqlAdapter, TERMOS_PADRAO_TJBA } from './adapters/tjba-graphql.adapter';
 import { TjdfJurisdfAdapter, TERMOS_PADRAO_TJDF } from './adapters/tjdf-jurisdf.adapter';
+import { TjpbJurispbAdapter, TERMOS_PADRAO_TJPB } from './adapters/tjpb-jurispb.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -17,6 +18,7 @@ import { ExecutarCrawlTjscDto } from './dto/executar-crawl-tjsc.dto';
 import { ExecutarCrawlTjrsDto } from './dto/executar-crawl-tjrs.dto';
 import { ExecutarCrawlTjbaDto } from './dto/executar-crawl-tjba.dto';
 import { ExecutarCrawlTjdfDto } from './dto/executar-crawl-tjdf.dto';
+import { ExecutarCrawlTjpbDto } from './dto/executar-crawl-tjpb.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -182,6 +184,28 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJDFT');
+  }
+
+  /**
+   * Dispara um crawl manual do TJPB. API REST nativa (JurisPB), sem
+   * CAPTCHA, sem exigência de browser. Filtra segundo grau (ementa vem
+   * nula em sentenças de primeiro grau).
+   */
+  @Post('tjpb/executar')
+  async executarTjpb(@Body() dto: ExecutarCrawlTjpbDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJPB' },
+      update: {},
+      create: { sigla: 'TJPB', nome: 'Tribunal de Justiça da Paraíba', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjpbJurispbAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJPB,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJPB');
   }
 }
 
