@@ -15,6 +15,7 @@ import { TjmtHellsgateAdapter, TERMOS_PADRAO_TJMT } from './adapters/tjmt-hellsg
 import { TjceSjurisAdapter, TERMOS_PADRAO_TJCE } from './adapters/tjce-sjuris.adapter';
 import { TjesSolrAdapter, TERMOS_PADRAO_TJES } from './adapters/tjes-solr.adapter';
 import { TjrnElasticAdapter, TERMOS_PADRAO_TJRN } from './adapters/tjrn-elastic.adapter';
+import { TjtoConsultaAdapter, TERMOS_PADRAO_TJTO } from './adapters/tjto-consulta.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -27,6 +28,7 @@ import { ExecutarCrawlTjmtDto } from './dto/executar-crawl-tjmt.dto';
 import { ExecutarCrawlTjceDto } from './dto/executar-crawl-tjce.dto';
 import { ExecutarCrawlTjesDto } from './dto/executar-crawl-tjes.dto';
 import { ExecutarCrawlTjrnDto } from './dto/executar-crawl-tjrn.dto';
+import { ExecutarCrawlTjtoDto } from './dto/executar-crawl-tjto.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -299,6 +301,28 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJRN');
+  }
+
+  /**
+   * Dispara um crawl manual do TJTO. Portal "Jurisprudência 4.0"
+   * (`consulta.php`), HTML renderizado server-side, sem CAPTCHA, sem
+   * exigência de browser. Paginação só funciona via POST.
+   */
+  @Post('tjto/executar')
+  async executarTjto(@Body() dto: ExecutarCrawlTjtoDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJTO' },
+      update: {},
+      create: { sigla: 'TJTO', nome: 'Tribunal de Justiça do Tocantins', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjtoConsultaAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJTO,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJTO');
   }
 }
 
