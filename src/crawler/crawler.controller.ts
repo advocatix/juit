@@ -18,6 +18,7 @@ import { TjrnElasticAdapter, TERMOS_PADRAO_TJRN } from './adapters/tjrn-elastic.
 import { TjtoConsultaAdapter, TERMOS_PADRAO_TJTO } from './adapters/tjto-consulta.adapter';
 import { TjpiConsultaAdapter, TERMOS_PADRAO_TJPI } from './adapters/tjpi-consulta.adapter';
 import { TjalCjsgAdapter } from './adapters/tjal-cjsg.adapter';
+import { TjrrJurisAdapter, TERMOS_PADRAO_TJRR } from './adapters/tjrr-juris.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -33,6 +34,7 @@ import { ExecutarCrawlTjrnDto } from './dto/executar-crawl-tjrn.dto';
 import { ExecutarCrawlTjtoDto } from './dto/executar-crawl-tjto.dto';
 import { ExecutarCrawlTjpiDto } from './dto/executar-crawl-tjpi.dto';
 import { ExecutarCrawlTjalDto } from './dto/executar-crawl-tjal.dto';
+import { ExecutarCrawlTjrrDto } from './dto/executar-crawl-tjrr.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -378,6 +380,28 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJAL');
+  }
+
+  /**
+   * Dispara um crawl manual do TJRR. Juris (JSF/PrimeFaces), sem
+   * CAPTCHA. Usa BrowserPoolService por ser um app stateful (mesmo
+   * tipo do TJPE, mas confiável aqui — ver tjrr-juris.adapter.ts).
+   */
+  @Post('tjrr/executar')
+  async executarTjrr(@Body() dto: ExecutarCrawlTjrrDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJRR' },
+      update: {},
+      create: { sigla: 'TJRR', nome: 'Tribunal de Justiça de Roraima', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjrrJurisAdapter(this.browserPool, {
+      termos: dto.termos ?? TERMOS_PADRAO_TJRR,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJRR');
   }
 }
 
