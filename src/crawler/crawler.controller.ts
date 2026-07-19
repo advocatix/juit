@@ -1,4 +1,5 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrawlerService } from './crawler.service';
@@ -20,6 +21,7 @@ import { TjpiConsultaAdapter, TERMOS_PADRAO_TJPI } from './adapters/tjpi-consult
 import { TjalCjsgAdapter } from './adapters/tjal-cjsg.adapter';
 import { TjrrJurisAdapter, TERMOS_PADRAO_TJRR } from './adapters/tjrr-juris.adapter';
 import { TjacCjsgAdapter } from './adapters/tjac-cjsg.adapter';
+import { TjmgEspelhoAdapter, TERMOS_PADRAO_TJMG } from './adapters/tjmg-espelho.adapter';
 import { TERMOS_PADRAO_FALCAO } from './adapters/falcao-nacional.adapter';
 import { executarFalcaoCrawl } from './adapters/falcao-runner';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
@@ -40,6 +42,7 @@ import { ExecutarCrawlTjalDto } from './dto/executar-crawl-tjal.dto';
 import { ExecutarCrawlTjrrDto } from './dto/executar-crawl-tjrr.dto';
 import { ExecutarCrawlTjacDto } from './dto/executar-crawl-tjac.dto';
 import { ExecutarCrawlFalcaoDto } from './dto/executar-crawl-falcao.dto';
+import { ExecutarCrawlTjmgDto } from './dto/executar-crawl-tjmg.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -48,6 +51,7 @@ export class CrawlerController {
     private readonly crawler: CrawlerService,
     private readonly browserPool: BrowserPoolService,
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -457,6 +461,37 @@ export class CrawlerController {
       termos: dto.termos ?? TERMOS_PADRAO_FALCAO,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 3,
     });
+  }
+
+  /**
+   * Dispara um crawl manual do TJMG — "Espelho de Acórdão"
+   * (formEspelhoAcordao.do). Exige resolver um CAPTCHA de imagem
+   * clássico a cada busca nova; resolvido via CapSolver
+   * (ver tjmg-espelho.adapter.ts). Só aceita busca por termo + período
+   * (data isolada não é suficiente, termo isolado sem período estoura
+   * o limite de exibição de resultados).
+   */
+  @Post('tjmg/executar')
+  async executarTjmg(@Body() dto: ExecutarCrawlTjmgDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJMG' },
+      update: {},
+      create: { sigla: 'TJMG', nome: 'Tribunal de Justiça de Minas Gerais', instancia: 'TRIBUNAL' },
+    });
+
+    const hoje = new Date();
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+
+    const adapter = new TjmgEspelhoAdapter(this.browserPool, this.configService, {
+      termos: dto.termos ?? TERMOS_PADRAO_TJMG,
+      dataJulgamentoInicio: ontem,
+      dataJulgamentoFim: ontem,
+      maxPaginas: dto.maxPaginas ?? 5,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJMG');
   }
 }
 
