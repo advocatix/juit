@@ -17,6 +17,7 @@ import { TjtoCrawlJob } from './jobs/tjto-crawl.job';
 import { TjpiCrawlJob } from './jobs/tjpi-crawl.job';
 import { TjalCrawlJob } from './jobs/tjal-crawl.job';
 import { TjrrCrawlJob } from './jobs/tjrr-crawl.job';
+import { TjacCrawlJob } from './jobs/tjac-crawl.job';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -39,6 +40,7 @@ import { AuthModule } from '../auth/auth.module';
     TjpiCrawlJob,
     TjalCrawlJob,
     TjrrCrawlJob,
+    TjacCrawlJob,
   ],
   controllers: [CrawlerController],
   exports: [CrawlerService],
