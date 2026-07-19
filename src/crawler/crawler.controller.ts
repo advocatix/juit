@@ -14,6 +14,7 @@ import { TjpbJurispbAdapter, TERMOS_PADRAO_TJPB } from './adapters/tjpb-jurispb.
 import { TjmtHellsgateAdapter, TERMOS_PADRAO_TJMT } from './adapters/tjmt-hellsgate.adapter';
 import { TjceSjurisAdapter, TERMOS_PADRAO_TJCE } from './adapters/tjce-sjuris.adapter';
 import { TjesSolrAdapter, TERMOS_PADRAO_TJES } from './adapters/tjes-solr.adapter';
+import { TjrnElasticAdapter, TERMOS_PADRAO_TJRN } from './adapters/tjrn-elastic.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -25,6 +26,7 @@ import { ExecutarCrawlTjpbDto } from './dto/executar-crawl-tjpb.dto';
 import { ExecutarCrawlTjmtDto } from './dto/executar-crawl-tjmt.dto';
 import { ExecutarCrawlTjceDto } from './dto/executar-crawl-tjce.dto';
 import { ExecutarCrawlTjesDto } from './dto/executar-crawl-tjes.dto';
+import { ExecutarCrawlTjrnDto } from './dto/executar-crawl-tjrn.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -275,6 +277,28 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJES');
+  }
+
+  /**
+   * Dispara um crawl manual do TJRN. Elasticsearch nativo por trás de
+   * API própria. Sem CAPTCHA de verdade — o 403 inicial era só falta
+   * dos headers Referer/X-Requested-With (ver tjrn-elastic.parser.ts).
+   */
+  @Post('tjrn/executar')
+  async executarTjrn(@Body() dto: ExecutarCrawlTjrnDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJRN' },
+      update: {},
+      create: { sigla: 'TJRN', nome: 'Tribunal de Justiça do Rio Grande do Norte', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjrnElasticAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJRN,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJRN');
   }
 }
 
