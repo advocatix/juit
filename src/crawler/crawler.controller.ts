@@ -11,6 +11,7 @@ import { TjrsSolrAdapter, TERMOS_PADRAO_TJRS } from './adapters/tjrs-solr.adapte
 import { TjbaGraphqlAdapter, TERMOS_PADRAO_TJBA } from './adapters/tjba-graphql.adapter';
 import { TjdfJurisdfAdapter, TERMOS_PADRAO_TJDF } from './adapters/tjdf-jurisdf.adapter';
 import { TjpbJurispbAdapter, TERMOS_PADRAO_TJPB } from './adapters/tjpb-jurispb.adapter';
+import { TjmtHellsgateAdapter, TERMOS_PADRAO_TJMT } from './adapters/tjmt-hellsgate.adapter';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
 import { ExecutarCrawlStjDto } from './dto/executar-crawl-stj.dto';
 import { ExecutarCrawlTjrjDto } from './dto/executar-crawl-tjrj.dto';
@@ -19,6 +20,7 @@ import { ExecutarCrawlTjrsDto } from './dto/executar-crawl-tjrs.dto';
 import { ExecutarCrawlTjbaDto } from './dto/executar-crawl-tjba.dto';
 import { ExecutarCrawlTjdfDto } from './dto/executar-crawl-tjdf.dto';
 import { ExecutarCrawlTjpbDto } from './dto/executar-crawl-tjpb.dto';
+import { ExecutarCrawlTjmtDto } from './dto/executar-crawl-tjmt.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -206,6 +208,27 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJPB');
+  }
+
+  /**
+   * Dispara um crawl manual do TJMT. API REST nativa, sem CAPTCHA, sem
+   * exigência de browser — só um header `token` fixo do frontend.
+   */
+  @Post('tjmt/executar')
+  async executarTjmt(@Body() dto: ExecutarCrawlTjmtDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJMT' },
+      update: {},
+      create: { sigla: 'TJMT', nome: 'Tribunal de Justiça de Mato Grosso', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjmtHellsgateAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJMT,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJMT');
   }
 }
 
