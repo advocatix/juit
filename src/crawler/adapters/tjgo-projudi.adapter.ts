@@ -150,6 +150,8 @@ export class TjgoProjudiAdapter implements CrawlerAdapter {
 
           await page.waitForTimeout(2000);
         }
+      } catch (err: any) {
+        this.logger.error(`TJGO: termo "${termo}" falhou de forma inesperada (${err.message}), pulando pro proximo termo`);
       } finally {
         await page.close();
       }

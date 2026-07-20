@@ -108,6 +108,8 @@ export class TjseJurisprudenciaAdapter implements CrawlerAdapter {
           await page.waitForTimeout(1000);
           pagina++;
         }
+      } catch (err: any) {
+        this.logger.error(`TJSE: termo "${termo}" falhou de forma inesperada (${err.message}), pulando pro proximo termo`);
       } finally {
         await page.close();
       }

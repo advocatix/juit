@@ -117,6 +117,8 @@ export class TjmgEspelhoAdapter implements CrawlerAdapter {
 
           pagina++;
         }
+      } catch (err: any) {
+        this.logger.error(`TJMG: termo "${termo}" falhou de forma inesperada (${err.message}), pulando pro proximo termo`);
       } finally {
         await page.close();
       }
@@ -132,6 +134,12 @@ export class TjmgEspelhoAdapter implements CrawlerAdapter {
         const imgBuffer = await imgEl.screenshot();
         const resposta = await this.resolverImagemCaptcha(imgBuffer.toString('base64'));
 
+        if (!resposta) {
+          this.logger.warn(`TJMG: CapSolver devolveu resposta vazia na tentativa ${i}, tentando de novo`);
+          await page.waitForTimeout(1000);
+          continue;
+        }
+
         await page.fill('#captcha_text', resposta);
         await page.dispatchEvent('#captcha_text', 'keyup');
         await page.waitForTimeout(2500);
@@ -145,12 +153,19 @@ export class TjmgEspelhoAdapter implements CrawlerAdapter {
         if (err.message?.includes('Execution context was destroyed') || err.message?.includes('Target closed')) {
           return true;
         }
-        throw err;
+        // Qualquer outra falha (CapSolver fora do ar, timeout, etc.) não
+        // deve derrubar o crawl inteiro — loga e tenta de novo, e só
+        // desiste desse termo depois de esgotar as tentativas.
+        this.logger.warn(`TJMG: falha na tentativa ${i} (${err.message}), tentando de novo`);
+        await page.waitForTimeout(1000);
       }
     }
     return false;
   }
 
+  /** Retorna string vazia (não lança) quando o CapSolver "resolve" sem
+   *  conseguir ler nada — condição real observada ao vivo, tratada
+   *  como tentativa errada (retry), não como erro fatal. */
   private async resolverImagemCaptcha(base64Imagem: string): Promise<string> {
     const apiKey = this.configService.get<string>('CAPSOLVER_API_KEY');
     if (!apiKey) throw new Error('CAPSOLVER_API_KEY não configurada');
@@ -160,8 +175,11 @@ export class TjmgEspelhoAdapter implements CrawlerAdapter {
       task: { type: 'ImageToTextTask', body: base64Imagem, module: 'common' },
     });
 
-    if (resp.data.solution?.text) return resp.data.solution.text;
-    throw new Error(`CapSolver não retornou solução: ${JSON.stringify(resp.data)}`);
+    if (resp.data.errorId && resp.data.errorId !== 0) {
+      throw new Error(`CapSolver retornou erro: ${JSON.stringify(resp.data)}`);
+    }
+
+    return resp.data.solution?.text ?? '';
   }
 }
 
