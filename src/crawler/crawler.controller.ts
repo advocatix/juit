@@ -24,6 +24,7 @@ import { TjacCjsgAdapter } from './adapters/tjac-cjsg.adapter';
 import { TjmgEspelhoAdapter, TERMOS_PADRAO_TJMG } from './adapters/tjmg-espelho.adapter';
 import { TjseJurisprudenciaAdapter, TERMOS_PADRAO_TJSE } from './adapters/tjse-jurisprudencia.adapter';
 import { TjpeJurisprudenciaAdapter, TERMOS_PADRAO_TJPE } from './adapters/tjpe-jurisprudencia.adapter';
+import { TjgoProjudiAdapter, TERMOS_PADRAO_TJGO } from './adapters/tjgo-projudi.adapter';
 import { TERMOS_PADRAO_FALCAO } from './adapters/falcao-nacional.adapter';
 import { executarFalcaoCrawl } from './adapters/falcao-runner';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
@@ -47,6 +48,7 @@ import { ExecutarCrawlFalcaoDto } from './dto/executar-crawl-falcao.dto';
 import { ExecutarCrawlTjmgDto } from './dto/executar-crawl-tjmg.dto';
 import { ExecutarCrawlTjseDto } from './dto/executar-crawl-tjse.dto';
 import { ExecutarCrawlTjpeDto } from './dto/executar-crawl-tjpe.dto';
+import { ExecutarCrawlTjgoDto } from './dto/executar-crawl-tjgo.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -543,6 +545,29 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJPE');
+  }
+
+  /**
+   * Dispara um crawl manual do TJGO — "Novo Módulo de Pesquisa de
+   * Jurisprudência" do PROJUDI. Protegido por Cloudflare Turnstile
+   * (widget visível) resolvido via CapSolver
+   * (ver tjgo-projudi.adapter.ts).
+   */
+  @Post('tjgo/executar')
+  async executarTjgo(@Body() dto: ExecutarCrawlTjgoDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJGO' },
+      update: {},
+      create: { sigla: 'TJGO', nome: 'Tribunal de Justiça de Goiás', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjgoProjudiAdapter(this.browserPool, this.configService, {
+      termos: dto.termos ?? TERMOS_PADRAO_TJGO,
+      maxPaginas: dto.maxPaginas ?? 15,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJGO');
   }
 }
 
