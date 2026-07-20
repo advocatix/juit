@@ -70,7 +70,13 @@ export class TjspCjsgAdapter implements CrawlerAdapter {
         const proxima = page.locator('a[title="Próxima página"]');
         if ((await proxima.count()) === 0) break;
 
-        await Promise.all([page.waitForLoadState('networkidle'), proxima.first().click()]);
+        // page.click() ficou instavel em paginas de resultado pesadas
+        // (mesmo problema real encontrado no TJMG: a checagem de
+        // "estavel" do Playwright nunca fecha) - clique via JS direto
+        // e mais confiavel, com espera explicita depois.
+        await proxima.first().evaluate((el: HTMLElement) => el.click());
+        await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
+        await page.waitForTimeout(1500);
         pagina++;
       }
     } finally {

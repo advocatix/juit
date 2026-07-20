@@ -104,7 +104,13 @@ export class TjseJurisprudenciaAdapter implements CrawlerAdapter {
           const proxima = page.locator('.ui-paginator-next:not(.ui-state-disabled)');
           if ((await proxima.count()) === 0) break;
 
-          await Promise.all([page.waitForLoadState('networkidle'), proxima.first().click()]);
+          // clique via JS direto - page.click() ficou instavel em
+          // paginas de resultado pesadas (mesmo problema real
+          // encontrado no TJMG e no TJSP: a checagem de "estavel" do
+          // Playwright nunca fecha)
+          await proxima.first().evaluate((el: HTMLElement) => el.click());
+          await page.waitForLoadState('networkidle', { timeout: 60000 }).catch(() => {});
+          await page.waitForTimeout(1500);
           await page.waitForTimeout(1000);
           pagina++;
         }
