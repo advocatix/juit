@@ -23,6 +23,7 @@ import { TjrrJurisAdapter, TERMOS_PADRAO_TJRR } from './adapters/tjrr-juris.adap
 import { TjacCjsgAdapter } from './adapters/tjac-cjsg.adapter';
 import { TjmgEspelhoAdapter, TERMOS_PADRAO_TJMG } from './adapters/tjmg-espelho.adapter';
 import { TjseJurisprudenciaAdapter, TERMOS_PADRAO_TJSE } from './adapters/tjse-jurisprudencia.adapter';
+import { TjpeJurisprudenciaAdapter, TERMOS_PADRAO_TJPE } from './adapters/tjpe-jurisprudencia.adapter';
 import { TERMOS_PADRAO_FALCAO } from './adapters/falcao-nacional.adapter';
 import { executarFalcaoCrawl } from './adapters/falcao-runner';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
@@ -45,6 +46,7 @@ import { ExecutarCrawlTjacDto } from './dto/executar-crawl-tjac.dto';
 import { ExecutarCrawlFalcaoDto } from './dto/executar-crawl-falcao.dto';
 import { ExecutarCrawlTjmgDto } from './dto/executar-crawl-tjmg.dto';
 import { ExecutarCrawlTjseDto } from './dto/executar-crawl-tjse.dto';
+import { ExecutarCrawlTjpeDto } from './dto/executar-crawl-tjpe.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -518,6 +520,29 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJSE');
+  }
+
+  /**
+   * Dispara um crawl manual do TJPE. Sem CAPTCHA — a busca precisa
+   * clicar no link "Pesquisar" de verdade e depois no link
+   * "N documentos encontrados" de Acórdãos na tela intermediária
+   * (ver tjpe-jurisprudencia.adapter.ts).
+   */
+  @Post('tjpe/executar')
+  async executarTjpe(@Body() dto: ExecutarCrawlTjpeDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJPE' },
+      update: {},
+      create: { sigla: 'TJPE', nome: 'Tribunal de Justiça de Pernambuco', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjpeJurisprudenciaAdapter(this.browserPool, {
+      termos: dto.termos ?? TERMOS_PADRAO_TJPE,
+      maxPaginas: dto.maxPaginas ?? 5,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJPE');
   }
 }
 
