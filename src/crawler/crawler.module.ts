@@ -21,6 +21,9 @@ import { TjacCrawlJob } from './jobs/tjac-crawl.job';
 import { FalcaoCrawlJob } from './jobs/falcao-crawl.job';
 import { TjmgCrawlJob } from './jobs/tjmg-crawl.job';
 import { TjseCrawlJob } from './jobs/tjse-crawl.job';
+import { TjpeCrawlJob } from './jobs/tjpe-crawl.job';
+import { TjgoCrawlJob } from './jobs/tjgo-crawl.job';
+import { TjpaCrawlJob } from './jobs/tjpa-crawl.job';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
@@ -47,6 +50,9 @@ import { AuthModule } from '../auth/auth.module';
     FalcaoCrawlJob,
     TjmgCrawlJob,
     TjseCrawlJob,
+    TjpeCrawlJob,
+    TjgoCrawlJob,
+    TjpaCrawlJob,
   ],
   controllers: [CrawlerController],
   exports: [CrawlerService],
