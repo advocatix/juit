@@ -28,12 +28,19 @@ export const TERMOS_PADRAO_TJRN: TjrnTermo[] = [
 /**
  * Coleta acórdãos do TJRN via a API de jurisprudência (Elasticsearch
  * por trás). Sem CAPTCHA — o 403 inicial era só falta dos headers
- * Referer/X-Requested-With, não um bloqueio de bot de verdade. Mas o
- * endpoint tem algum tipo de WAF/rate-limit por volume (confirmado ao
- * vivo em 2026-07-19: depois de ~7 requisições em poucos minutos
- * durante os testes, passou a responder 403 mesmo com os headers
- * corretos, inclusive fora da aplicação) — mesmo padrão visto no TJSC.
- * Por isso o intervalo entre páginas/termos aqui é o dobro do usual.
+ * Referer/X-Requested-With, não um bloqueio de bot de verdade.
+ *
+ * Bug real encontrado em 2026-07-20 durante o primeiro backfill: o
+ * User-Agent usado aqui era `Mozilla/5.0 (compatible; JuitBot/1.0)`
+ * — contém a palavra "Bot" de forma explícita. Confirmado ao vivo que
+ * o WAF do TJRN passou a bloquear 100% das requisições com 403
+ * "Access Denied" (Akamai) usando essa string, mesmo a primeira
+ * requisição de uma sessão nova — provavelmente um administrador
+ * viu "JuitBot" nos logs de acesso depois dos testes de 2026-07-19 e
+ * adicionou uma regra de bloqueio por assinatura. Trocado pra um
+ * User-Agent de navegador real resolveu de imediato (confirmado:
+ * 15/15 requisições 200 OK). Por isso o intervalo entre
+ * páginas/termos aqui continua o dobro do usual, por cautela.
  */
 export class TjrnElasticAdapter implements CrawlerAdapter {
   tribunalSigla = 'TJRN';
@@ -78,7 +85,7 @@ export class TjrnElasticAdapter implements CrawlerAdapter {
             {
               headers: {
                 'Content-Type': 'application/json;charset=UTF-8',
-                'User-Agent': 'Mozilla/5.0 (compatible; JuitBot/1.0)',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
                 Referer: 'https://jurisprudencia.tjrn.jus.br/',
                 'X-Requested-With': 'XMLHttpRequest',
               },
