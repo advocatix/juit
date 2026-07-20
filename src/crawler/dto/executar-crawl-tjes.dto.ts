@@ -20,6 +20,6 @@ export class ExecutarCrawlTjesDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(20)
+  @Max(500)
   maxPaginasPorTermo?: number;
 }
