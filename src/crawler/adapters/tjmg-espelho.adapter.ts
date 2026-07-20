@@ -111,8 +111,17 @@ export class TjmgEspelhoAdapter implements CrawlerAdapter {
           const proxima = page.locator('a.logtext:text-is(">")');
           if ((await proxima.count()) === 0) break;
 
-          await Promise.all([page.waitForLoadState('networkidle'), proxima.first().click()]);
-          await page.waitForTimeout(1000);
+          // page.click() e page.goto() no href do link ficam instaveis
+          // nessa pagina de resultados (paginas de busca ampla tem
+          // muito conteudo/DOM pesado, e a checagem de "estavel" do
+          // Playwright nunca fecha dentro do timeout) — o clique via
+          // JS puro (dispatchado direto no elemento) funciona de forma
+          // confiavel mesmo quando page.click()/page.goto() reportam
+          // timeout (confirmado ao vivo: a pagina avança normalmente
+          // mesmo quando o click() do Playwright "falha").
+          await proxima.first().evaluate((el: HTMLElement) => el.click());
+          await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => {});
+          await page.waitForTimeout(1500);
           await this.resolverCaptchaSeNecessario(page);
 
           pagina++;
