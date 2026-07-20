@@ -493,8 +493,8 @@ export class CrawlerController {
 
     const adapter = new TjmgEspelhoAdapter(this.browserPool, this.configService, {
       termos: dto.termos ?? TERMOS_PADRAO_TJMG,
-      dataJulgamentoInicio: ontem,
-      dataJulgamentoFim: ontem,
+      dataJulgamentoInicio: dto.dataJulgamentoInicio ? new Date(dto.dataJulgamentoInicio) : ontem,
+      dataJulgamentoFim: dto.dataJulgamentoFim ? new Date(dto.dataJulgamentoFim) : ontem,
       maxPaginas: dto.maxPaginas ?? 5,
     });
 

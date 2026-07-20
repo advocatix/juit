@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 
 class TermoTjmgDto {
   @IsString()
@@ -20,6 +20,16 @@ export class ExecutarCrawlTjmgDto {
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(20)
+  @Max(50)
   maxPaginas?: number;
+
+  /** Backfill manual: sobrescreve o período padrão ("ontem", usado
+   *  pelo cron diário). Formato YYYY-MM-DD. */
+  @IsOptional()
+  @IsDateString()
+  dataJulgamentoInicio?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dataJulgamentoFim?: string;
 }
