@@ -22,6 +22,7 @@ import { TjalCjsgAdapter } from './adapters/tjal-cjsg.adapter';
 import { TjrrJurisAdapter, TERMOS_PADRAO_TJRR } from './adapters/tjrr-juris.adapter';
 import { TjacCjsgAdapter } from './adapters/tjac-cjsg.adapter';
 import { TjmgEspelhoAdapter, TERMOS_PADRAO_TJMG } from './adapters/tjmg-espelho.adapter';
+import { TjseJurisprudenciaAdapter, TERMOS_PADRAO_TJSE } from './adapters/tjse-jurisprudencia.adapter';
 import { TERMOS_PADRAO_FALCAO } from './adapters/falcao-nacional.adapter';
 import { executarFalcaoCrawl } from './adapters/falcao-runner';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
@@ -43,6 +44,7 @@ import { ExecutarCrawlTjrrDto } from './dto/executar-crawl-tjrr.dto';
 import { ExecutarCrawlTjacDto } from './dto/executar-crawl-tjac.dto';
 import { ExecutarCrawlFalcaoDto } from './dto/executar-crawl-falcao.dto';
 import { ExecutarCrawlTjmgDto } from './dto/executar-crawl-tjmg.dto';
+import { ExecutarCrawlTjseDto } from './dto/executar-crawl-tjse.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -492,6 +494,30 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJMG');
+  }
+
+  /**
+   * Dispara um crawl manual do TJSE. Protegido por Cloudflare
+   * Turnstile de verdade — resolvido via CapSolver
+   * (ver tjse-jurisprudencia.adapter.ts). Achado crítico: o token vai
+   * num campo separado (#turnstile-hidden), não no campo interno do
+   * próprio widget.
+   */
+  @Post('tjse/executar')
+  async executarTjse(@Body() dto: ExecutarCrawlTjseDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJSE' },
+      update: {},
+      create: { sigla: 'TJSE', nome: 'Tribunal de Justiça de Sergipe', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjseJurisprudenciaAdapter(this.browserPool, this.configService, {
+      termos: dto.termos ?? TERMOS_PADRAO_TJSE,
+      maxPaginas: dto.maxPaginas ?? 5,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJSE');
   }
 }
 
