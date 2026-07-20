@@ -25,6 +25,7 @@ import { TjmgEspelhoAdapter, TERMOS_PADRAO_TJMG } from './adapters/tjmg-espelho.
 import { TjseJurisprudenciaAdapter, TERMOS_PADRAO_TJSE } from './adapters/tjse-jurisprudencia.adapter';
 import { TjpeJurisprudenciaAdapter, TERMOS_PADRAO_TJPE } from './adapters/tjpe-jurisprudencia.adapter';
 import { TjgoProjudiAdapter, TERMOS_PADRAO_TJGO } from './adapters/tjgo-projudi.adapter';
+import { TjpaDecisoesAdapter, TERMOS_PADRAO_TJPA } from './adapters/tjpa-decisoes.adapter';
 import { TERMOS_PADRAO_FALCAO } from './adapters/falcao-nacional.adapter';
 import { executarFalcaoCrawl } from './adapters/falcao-runner';
 import { ExecutarCrawlTjspDto } from './dto/executar-crawl-tjsp.dto';
@@ -49,6 +50,7 @@ import { ExecutarCrawlTjmgDto } from './dto/executar-crawl-tjmg.dto';
 import { ExecutarCrawlTjseDto } from './dto/executar-crawl-tjse.dto';
 import { ExecutarCrawlTjpeDto } from './dto/executar-crawl-tjpe.dto';
 import { ExecutarCrawlTjgoDto } from './dto/executar-crawl-tjgo.dto';
+import { ExecutarCrawlTjpaDto } from './dto/executar-crawl-tjpa.dto';
 
 @Controller('crawler')
 @UseGuards(ApiKeyGuard)
@@ -568,6 +570,29 @@ export class CrawlerController {
 
     this.crawler.registrarAdapter(adapter);
     return this.crawler.executarCrawl('TJGO');
+  }
+
+  /**
+   * Dispara um crawl manual do TJPA. Sem CAPTCHA, sem browser — API
+   * JSON nativa do "Banco de Jurisprudência", sistema novo lançado em
+   * 2026 que substituiu o antigo serviço 100% manual por e-mail (ver
+   * tjpa-decisoes.adapter.ts).
+   */
+  @Post('tjpa/executar')
+  async executarTjpa(@Body() dto: ExecutarCrawlTjpaDto) {
+    await this.prisma.tribunal.upsert({
+      where: { sigla: 'TJPA' },
+      update: {},
+      create: { sigla: 'TJPA', nome: 'Tribunal de Justiça do Pará', instancia: 'TRIBUNAL' },
+    });
+
+    const adapter = new TjpaDecisoesAdapter({
+      termos: dto.termos ?? TERMOS_PADRAO_TJPA,
+      maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 3,
+    });
+
+    this.crawler.registrarAdapter(adapter);
+    return this.crawler.executarCrawl('TJPA');
   }
 }
 
