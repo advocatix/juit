@@ -171,6 +171,7 @@ export class CrawlerController {
     const adapter = new TjrsSolrAdapter({
       termos: dto.termos ?? TERMOS_PADRAO_TJRS,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+      varrerTudo: dto.varrerTudo,
     });
 
     this.crawler.registrarAdapter(adapter);

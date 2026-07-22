@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
 
 class TermoTjrsDto {
   @IsString()
@@ -22,4 +22,9 @@ export class ExecutarCrawlTjrsDto {
   @Min(1)
   @Max(500)
   maxPaginasPorTermo?: number;
+
+  /** Ignora `termos` e varre o acervo inteiro, ano a ano (backfill real). */
+  @IsOptional()
+  @IsBoolean()
+  varrerTudo?: boolean;
 }
