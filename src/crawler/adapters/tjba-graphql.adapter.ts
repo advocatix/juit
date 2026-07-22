@@ -5,6 +5,12 @@ import { parseResultadosTjba, TjbaGraphqlResponse } from '../parsers/tjba-graphq
 
 const GRAPHQL_URL = 'https://jurisprudenciaws.tjba.jus.br/graphql';
 const ITENS_POR_PAGINA = 10;
+// Modo "varrer tudo": confirmado ao vivo que `assunto: ""` (vazio)
+// devolve o acervo inteiro (3.289.223 itens em 2026-07-22), sem
+// precisar de termo. itemsPerPage testado ate 1000 sem erro; usamos
+// 500 por seguranca.
+const ITENS_POR_PAGINA_VARRER_TUDO = 500;
+const PAGINAS_MAX_SEGURANCA = 20000;
 
 const QUERY = `query filter($decisaoFilter: DecisaoFilter!,$pageNumber: Int!,$itemsPerPage: Int!) {
   filter(decisaoFilter: $decisaoFilter,pageNumber: $pageNumber,itemsPerPage: $itemsPerPage) {
@@ -29,6 +35,8 @@ export interface TjbaTermo {
 export interface TjbaGraphqlConfig {
   termos: TjbaTermo[];
   maxPaginasPorTermo?: number;
+  /** Ignora `termos` e varre o acervo inteiro (assunto vazio). */
+  varrerTudo?: boolean;
 }
 
 export const TERMOS_PADRAO_TJBA: TjbaTermo[] = [
@@ -54,6 +62,11 @@ export class TjbaGraphqlAdapter implements CrawlerAdapter {
   constructor(private readonly config: TjbaGraphqlConfig) {}
 
   async *coletar() {
+    if (this.config.varrerTudo) {
+      yield* this.varrerAcervoCompleto();
+      return;
+    }
+
     const termos = this.config.termos.length ? this.config.termos : TERMOS_PADRAO_TJBA;
     const maxPaginas = this.config.maxPaginasPorTermo ?? 5;
 
@@ -121,6 +134,78 @@ export class TjbaGraphqlAdapter implements CrawlerAdapter {
       }
 
       await esperar(1000);
+    }
+  }
+
+  private async *varrerAcervoCompleto() {
+    let pagina = 0;
+    let falhasSeguidas = 0;
+
+    while (pagina < PAGINAS_MAX_SEGURANCA) {
+      let json: TjbaGraphqlResponse;
+      try {
+        const resp = await axios.post<TjbaGraphqlResponse>(
+          GRAPHQL_URL,
+          {
+            operationName: 'filter',
+            variables: {
+              decisaoFilter: {
+                assunto: '',
+                orgaos: [],
+                relatores: [],
+                classes: [],
+                dataInicial: '1980-02-01T03:00:00.000Z',
+                segundoGrau: true,
+                turmasRecursais: true,
+                tipoAcordaos: true,
+                tipoDecisoesMonocraticas: true,
+                ordenadoPor: 'dataPublicacao',
+              },
+              pageNumber: pagina,
+              itemsPerPage: ITENS_POR_PAGINA_VARRER_TUDO,
+            },
+            query: QUERY,
+          },
+          {
+            headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; JuitBot/1.0)' },
+            timeout: 30000,
+          },
+        );
+        json = resp.data;
+        falhasSeguidas = 0;
+      } catch (err: any) {
+        falhasSeguidas++;
+        this.logger.warn(`TJBA: falha na requisicao (varrer tudo, pagina ${pagina}): ${err.message}`);
+        if (falhasSeguidas >= 5) {
+          this.logger.error('TJBA: 5 falhas seguidas, encerrando varredura');
+          break;
+        }
+        await esperar(5000);
+        continue;
+      }
+
+      const itens = parseResultadosTjba(json);
+      if (!itens.length) {
+        this.logger.log(`TJBA: varredura completa encerrada na pagina ${pagina} (sem mais resultados)`);
+        break;
+      }
+
+      for (const item of itens) {
+        yield {
+          numeroProcesso: item.numeroProcesso,
+          orgaoJulgador: item.orgaoJulgador,
+          relator: item.relator,
+          dataJulgamento: item.dataJulgamento,
+          ementa: item.ementa,
+        };
+      }
+
+      if (pagina % 20 === 0) {
+        this.logger.log(`TJBA: varredura completa, pagina ${pagina} (total esperado: ${json.data?.filter?.itemCount ?? '?'})`);
+      }
+
+      pagina++;
+      await esperar(800);
     }
   }
 }

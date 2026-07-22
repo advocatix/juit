@@ -5,6 +5,11 @@ import { parseResultadosTjdf, TjdfApiResponse } from '../parsers/tjdf-jurisdf.pa
 
 const API_URL = 'https://jurisdf.tjdft.jus.br/api/v1/pesquisa';
 const ITENS_POR_PAGINA = 20;
+// Modo "varrer tudo": confirmado ao vivo que `query: ""` devolve o
+// acervo inteiro (1.728.121 itens em 2026-07-22). Tamanho maximo
+// aceito pela API e 40 (validado pelo backend, erro 400 acima disso).
+const ITENS_POR_PAGINA_VARRER_TUDO = 40;
+const PAGINAS_MAX_SEGURANCA = 60000;
 
 export interface TjdfTermo {
   termo: string;
@@ -14,6 +19,8 @@ export interface TjdfTermo {
 export interface TjdfJurisdfConfig {
   termos: TjdfTermo[];
   maxPaginasPorTermo?: number;
+  /** Ignora `termos` e varre o acervo inteiro (query vazia). */
+  varrerTudo?: boolean;
 }
 
 export const TERMOS_PADRAO_TJDF: TjdfTermo[] = [
@@ -37,6 +44,11 @@ export class TjdfJurisdfAdapter implements CrawlerAdapter {
   constructor(private readonly config: TjdfJurisdfConfig) {}
 
   async *coletar() {
+    if (this.config.varrerTudo) {
+      yield* this.varrerAcervoCompleto();
+      return;
+    }
+
     const termos = this.config.termos.length ? this.config.termos : TERMOS_PADRAO_TJDF;
     const maxPaginas = this.config.maxPaginasPorTermo ?? 5;
 
@@ -92,6 +104,69 @@ export class TjdfJurisdfAdapter implements CrawlerAdapter {
       }
 
       await esperar(1000);
+    }
+  }
+
+  private async *varrerAcervoCompleto() {
+    let pagina = 0;
+    let falhasSeguidas = 0;
+
+    while (pagina < PAGINAS_MAX_SEGURANCA) {
+      let json: TjdfApiResponse;
+      try {
+        const resp = await axios.post<TjdfApiResponse>(
+          API_URL,
+          {
+            query: '',
+            termosAcessorios: [],
+            pagina,
+            tamanho: ITENS_POR_PAGINA_VARRER_TUDO,
+            sinonimos: true,
+            espelho: true,
+            inteiroTeor: false,
+            retornaInteiroTeor: false,
+            retornaTotalizacao: true,
+          },
+          {
+            headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; JuitBot/1.0)' },
+            timeout: 30000,
+          },
+        );
+        json = resp.data;
+        falhasSeguidas = 0;
+      } catch (err: any) {
+        falhasSeguidas++;
+        this.logger.warn(`TJDFT: falha na requisicao (varrer tudo, pagina ${pagina}): ${err.message}`);
+        if (falhasSeguidas >= 5) {
+          this.logger.error('TJDFT: 5 falhas seguidas, encerrando varredura');
+          break;
+        }
+        await esperar(5000);
+        continue;
+      }
+
+      const itens = parseResultadosTjdf(json);
+      if (!itens.length) {
+        this.logger.log(`TJDFT: varredura completa encerrada na pagina ${pagina} (sem mais resultados)`);
+        break;
+      }
+
+      for (const item of itens) {
+        yield {
+          numeroProcesso: item.numeroProcesso,
+          orgaoJulgador: item.orgaoJulgador,
+          relator: item.relator,
+          dataJulgamento: item.dataJulgamento,
+          ementa: item.ementa,
+        };
+      }
+
+      if (pagina % 100 === 0) {
+        this.logger.log(`TJDFT: varredura completa, pagina ${pagina} (total esperado: ${json.hits?.value ?? '?'})`);
+      }
+
+      pagina++;
+      await esperar(600);
     }
   }
 }

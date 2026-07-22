@@ -192,6 +192,7 @@ export class CrawlerController {
     const adapter = new TjbaGraphqlAdapter({
       termos: dto.termos ?? TERMOS_PADRAO_TJBA,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+      varrerTudo: dto.varrerTudo,
     });
 
     this.crawler.registrarAdapter(adapter);
@@ -213,6 +214,7 @@ export class CrawlerController {
     const adapter = new TjdfJurisdfAdapter({
       termos: dto.termos ?? TERMOS_PADRAO_TJDF,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+      varrerTudo: dto.varrerTudo,
     });
 
     this.crawler.registrarAdapter(adapter);
@@ -235,6 +237,7 @@ export class CrawlerController {
     const adapter = new TjpbJurispbAdapter({
       termos: dto.termos ?? TERMOS_PADRAO_TJPB,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+      varrerTudo: dto.varrerTudo,
     });
 
     this.crawler.registrarAdapter(adapter);
@@ -256,6 +259,7 @@ export class CrawlerController {
     const adapter = new TjmtHellsgateAdapter({
       termos: dto.termos ?? TERMOS_PADRAO_TJMT,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+      varrerTudo: dto.varrerTudo,
     });
 
     this.crawler.registrarAdapter(adapter);
@@ -298,6 +302,7 @@ export class CrawlerController {
     const adapter = new TjesSolrAdapter({
       termos: dto.termos ?? TERMOS_PADRAO_TJES,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 2,
+      varrerTudo: dto.varrerTudo,
     });
 
     this.crawler.registrarAdapter(adapter);

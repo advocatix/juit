@@ -6,6 +6,12 @@ import { parseResultadosTjes, TjesApiResponse } from '../parsers/tjes-solr.parse
 const API_URL = 'https://sistemas.tjes.jus.br/consulta-jurisprudencia/api/search';
 const CORE = 'pje2g';
 const ITENS_POR_PAGINA = 20;
+// Modo "varrer tudo": confirmado ao vivo que o backend aceita q=*:*
+// (wildcard Solr) e devolve o acervo inteiro, sem precisar de termo de
+// busca — 215.574 documentos no core pje2g em 2026-07-22. Testado até
+// per_page=2000 sem erro; usamos 500 por seguranca (payload/timeout).
+const ITENS_POR_PAGINA_VARRER_TUDO = 500;
+const PAGINAS_MAX_SEGURANCA = 5000;
 
 export interface TjesTermo {
   termo: string;
@@ -15,6 +21,8 @@ export interface TjesTermo {
 export interface TjesSolrConfig {
   termos: TjesTermo[];
   maxPaginasPorTermo?: number;
+  /** Ignora `termos` e varre o acervo inteiro via busca wildcard. */
+  varrerTudo?: boolean;
 }
 
 export const TERMOS_PADRAO_TJES: TjesTermo[] = [
@@ -38,6 +46,11 @@ export class TjesSolrAdapter implements CrawlerAdapter {
   constructor(private readonly config: TjesSolrConfig) {}
 
   async *coletar() {
+    if (this.config.varrerTudo) {
+      yield* this.varrerAcervoCompleto();
+      return;
+    }
+
     const termos = this.config.termos.length ? this.config.termos : TERMOS_PADRAO_TJES;
     const maxPaginas = this.config.maxPaginasPorTermo ?? 5;
 
@@ -80,6 +93,56 @@ export class TjesSolrAdapter implements CrawlerAdapter {
       }
 
       await esperar(1000);
+    }
+  }
+
+  private async *varrerAcervoCompleto() {
+    let pagina = 1;
+    let falhasSeguidas = 0;
+
+    while (pagina <= PAGINAS_MAX_SEGURANCA) {
+      let json: TjesApiResponse;
+      try {
+        const resp = await axios.get<TjesApiResponse>(API_URL, {
+          params: { core: CORE, q: '*:*', page: pagina, per_page: ITENS_POR_PAGINA_VARRER_TUDO },
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; JuitBot/1.0)' },
+          timeout: 30000,
+        });
+        json = resp.data;
+        falhasSeguidas = 0;
+      } catch (err: any) {
+        falhasSeguidas++;
+        this.logger.warn(`TJES: falha na requisicao (varrer tudo, pagina ${pagina}): ${err.message}`);
+        if (falhasSeguidas >= 5) {
+          this.logger.error('TJES: 5 falhas seguidas, encerrando varredura');
+          break;
+        }
+        await esperar(5000);
+        continue;
+      }
+
+      const itens = parseResultadosTjes(json);
+      if (!itens.length) {
+        this.logger.log(`TJES: varredura completa encerrada na pagina ${pagina} (sem mais resultados)`);
+        break;
+      }
+
+      for (const item of itens) {
+        yield {
+          numeroProcesso: item.numeroProcesso,
+          orgaoJulgador: item.orgaoJulgador,
+          relator: item.relator,
+          dataJulgamento: item.dataJulgamento,
+          ementa: item.ementa,
+        };
+      }
+
+      if (pagina % 20 === 0) {
+        this.logger.log(`TJES: varredura completa, pagina ${pagina} (total esperado: ${json.total ?? '?'})`);
+      }
+
+      pagina++;
+      await esperar(800);
     }
   }
 }

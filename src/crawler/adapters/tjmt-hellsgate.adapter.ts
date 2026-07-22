@@ -8,6 +8,12 @@ const API_URL = 'https://hellsgate-preview.tjmt.jus.br/jurisprudencia/api/Consul
 // browser que carrega jurisprudencia.tjmt.jus.br envia o mesmo valor).
 const TOKEN = '3u35s547H0twxVuT';
 const ITENS_POR_PAGINA = 10;
+// Modo "varrer tudo": confirmado ao vivo que `termoDeBusca: ""` devolve
+// o acervo inteiro (1.081.143 acordaos em 2026-07-22, campo
+// CountAcordaoDocumento). Tamanho maximo aceito pela API e 100 (200
+// retorna erro "QuantidadePagina invalido").
+const ITENS_POR_PAGINA_VARRER_TUDO = 100;
+const PAGINAS_MAX_SEGURANCA = 20000;
 
 export interface TjmtTermo {
   termo: string;
@@ -17,6 +23,8 @@ export interface TjmtTermo {
 export interface TjmtHellsgateConfig {
   termos: TjmtTermo[];
   maxPaginasPorTermo?: number;
+  /** Ignora `termos` e varre o acervo inteiro (termoDeBusca vazio). */
+  varrerTudo?: boolean;
 }
 
 export const TERMOS_PADRAO_TJMT: TjmtTermo[] = [
@@ -40,6 +48,11 @@ export class TjmtHellsgateAdapter implements CrawlerAdapter {
   constructor(private readonly config: TjmtHellsgateConfig) {}
 
   async *coletar() {
+    if (this.config.varrerTudo) {
+      yield* this.varrerAcervoCompleto();
+      return;
+    }
+
     const termos = this.config.termos.length ? this.config.termos : TERMOS_PADRAO_TJMT;
     const maxPaginas = this.config.maxPaginasPorTermo ?? 5;
 
@@ -96,6 +109,70 @@ export class TjmtHellsgateAdapter implements CrawlerAdapter {
       }
 
       await esperar(1000);
+    }
+  }
+
+  private async *varrerAcervoCompleto() {
+    let pagina = 1;
+    let falhasSeguidas = 0;
+
+    while (pagina <= PAGINAS_MAX_SEGURANCA) {
+      let json: TjmtApiResponse;
+      try {
+        const resp = await axios.get<TjmtApiResponse>(API_URL, {
+          params: {
+            'filtro.isBasica': true,
+            'filtro.indicePagina': pagina,
+            'filtro.quantidadePagina': ITENS_POR_PAGINA_VARRER_TUDO,
+            'filtro.tipoConsulta': 'Acordao',
+            'filtro.termoDeBusca': '',
+            'filtro.tipoBusca': 1,
+            'filtro.ordenacao.ordenarPor': 'DataDecrescente',
+            'filtro.ordenacao.ordenarDataPor': 'Julgamento',
+            'filtro.thesaurus': false,
+          },
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; JuitBot/1.0)',
+            Accept: 'application/json',
+            token: TOKEN,
+          },
+          timeout: 30000,
+        });
+        json = resp.data;
+        falhasSeguidas = 0;
+      } catch (err: any) {
+        falhasSeguidas++;
+        this.logger.warn(`TJMT: falha na requisicao (varrer tudo, pagina ${pagina}): ${err.message}`);
+        if (falhasSeguidas >= 5) {
+          this.logger.error('TJMT: 5 falhas seguidas, encerrando varredura');
+          break;
+        }
+        await esperar(5000);
+        continue;
+      }
+
+      const itens = parseResultadosTjmt(json);
+      if (!itens.length) {
+        this.logger.log(`TJMT: varredura completa encerrada na pagina ${pagina} (sem mais resultados)`);
+        break;
+      }
+
+      for (const item of itens) {
+        yield {
+          numeroProcesso: item.numeroProcesso,
+          orgaoJulgador: item.orgaoJulgador,
+          relator: item.relator,
+          dataJulgamento: item.dataJulgamento,
+          ementa: item.ementa,
+        };
+      }
+
+      if (pagina % 20 === 0) {
+        this.logger.log(`TJMT: varredura completa, pagina ${pagina} (total esperado: ${json.CountAcordaoDocumento ?? '?'})`);
+      }
+
+      pagina++;
+      await esperar(800);
     }
   }
 }
