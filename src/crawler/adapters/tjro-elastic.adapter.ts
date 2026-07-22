@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { Page } from 'playwright-core';
 import { CrawlerAdapter } from '../crawler.service';
 import { BrowserPoolService } from '../browser-pool.service';
 import { parseResultadosTjro, TjroApiResponse } from '../parsers/tjro-elastic.parser';
@@ -63,35 +64,24 @@ export class TjroElasticAdapter implements CrawlerAdapter {
           continue;
         }
 
+        // O desafio F5/TSPD e por dominio: passar em juris.tjro.jus.br
+        // (front) nao libera automaticamente juris-back.tjro.jus.br
+        // (API) — o cookie do desafio da API e resolvido por JS em
+        // background depois que a pagina carrega, de forma assincrona.
+        // Sem essa espera, o primeiro fetch() pode ainda cair na pagina
+        // de desafio (HTML) em vez do JSON esperado.
+        await page.waitForTimeout(6000);
+
         let pagina = 1;
         while (pagina <= maxPaginas) {
           const from = (pagina - 1) * TAMANHO_PAGINA;
-          const json = await page.evaluate<TjroApiResponse, { url: string; termo: string; from: number; size: number }>(
-            async ({ url, termo, from, size }) => {
-              const resp = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  from,
-                  size,
-                  fields: {
-                    nr_processo: '',
-                    query: termo,
-                    'tipo.raw': ['EMENTA'],
-                    'ds_nome.raw': [],
-                    'ds_orgao_julgador.raw': [],
-                    'ds_orgao_julgador_colegiado.raw': [],
-                    'ds_classe_judicial.raw': [],
-                  },
-                  sort: [{ _score: 'desc' }, { dtjulgamento: 'desc' }],
-                }),
-              });
-              return resp.json();
-            },
-            { url: API_URL, termo, from, size: TAMANHO_PAGINA },
-          );
+          const resultado = await this.buscarPaginaComRetry(page, termo, from);
+          if (resultado === null) {
+            this.logger.warn(`TJRO: termo "${termo}", pagina ${pagina} — desafio F5 nao liberou a API apos retries, pulando termo`);
+            break;
+          }
 
-          const itens = parseResultadosTjro(json);
+          const itens = parseResultadosTjro(resultado);
           if (!itens.length) {
             this.logger.log(`TJRO: termo "${termo}", pagina ${pagina} sem resultados, encerrando termo`);
             break;
@@ -116,5 +106,56 @@ export class TjroElasticAdapter implements CrawlerAdapter {
         await page.close();
       }
     }
+  }
+
+  /**
+   * Faz o POST pra API dentro da pagina (mesmas cookies do desafio
+   * F5/TSPD) validando content-type antes de chamar `.json()` — se a
+   * API ainda estiver servindo a pagina de desafio (HTML), `.json()`
+   * lancava `SyntaxError: Unexpected token '<'` e derrubava o crawl
+   * inteiro. Agora espera e tenta de novo algumas vezes antes de
+   * desistir do termo.
+   */
+  private async buscarPaginaComRetry(
+    page: Page,
+    termo: string,
+    from: number,
+    tentativas = 3,
+  ): Promise<TjroApiResponse | null> {
+    for (let i = 0; i < tentativas; i++) {
+      const resultado = await page.evaluate<
+        { ok: true; json: TjroApiResponse } | { ok: false },
+        { url: string; termo: string; from: number; size: number }
+      >(
+        async ({ url, termo, from, size }) => {
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from,
+              size,
+              fields: {
+                nr_processo: '',
+                query: termo,
+                'tipo.raw': ['EMENTA'],
+                'ds_nome.raw': [],
+                'ds_orgao_julgador.raw': [],
+                'ds_orgao_julgador_colegiado.raw': [],
+                'ds_classe_judicial.raw': [],
+              },
+              sort: [{ _score: 'desc' }, { dtjulgamento: 'desc' }],
+            }),
+          });
+          const contentType = resp.headers.get('content-type') ?? '';
+          if (!resp.ok || !contentType.includes('application/json')) return { ok: false };
+          return { ok: true, json: await resp.json() };
+        },
+        { url: API_URL, termo, from, size: TAMANHO_PAGINA },
+      );
+
+      if (resultado.ok) return resultado.json;
+      if (i < tentativas - 1) await page.waitForTimeout(4000 * (i + 1));
+    }
+    return null;
   }
 }
