@@ -8,9 +8,17 @@ const ITENS_POR_PAGINA = 10;
 // Modo "varrer tudo": confirmado ao vivo que `assunto: ""` (vazio)
 // devolve o acervo inteiro (3.289.223 itens em 2026-07-22), sem
 // precisar de termo. itemsPerPage testado ate 1000 sem erro; usamos
-// 500 por seguranca.
+// 500 por seguranca. Mas o backend (Elasticsearch por tras do
+// GraphQL) rejeita offset acima de 10.000 ("Internal Server Error(s)"
+// na pagina 20 com itemsPerPage=500) — o classico limite padrao
+// `max_result_window` do ES. Como um ano inteiro já passa de 250-300
+// mil itens (bem acima do teto), particionamos por DIA — confirmado
+// ao vivo que o pico observado num dia de alto volume foi ~285 itens,
+// bem abaixo de 10.000, mesmo em dezembro/2024 (mes de pico).
 const ITENS_POR_PAGINA_VARRER_TUDO = 500;
-const PAGINAS_MAX_SEGURANCA = 20000;
+const ANO_INICIAL = 2008; // confirmado ao vivo: 2007 = 0 itens, 2008 = primeiros registros
+const OFFSET_MAX_SEGURO = 9500;
+const PAGINAS_MAX_POR_DIA = Math.floor(OFFSET_MAX_SEGURO / ITENS_POR_PAGINA_VARRER_TUDO);
 
 const QUERY = `query filter($decisaoFilter: DecisaoFilter!,$pageNumber: Int!,$itemsPerPage: Int!) {
   filter(decisaoFilter: $decisaoFilter,pageNumber: $pageNumber,itemsPerPage: $itemsPerPage) {
@@ -138,82 +146,86 @@ export class TjbaGraphqlAdapter implements CrawlerAdapter {
   }
 
   private async *varrerAcervoCompleto() {
-    let pagina = 0;
-    let falhasSeguidas = 0;
+    const hoje = new Date();
 
-    while (pagina < PAGINAS_MAX_SEGURANCA) {
-      let json: TjbaGraphqlResponse;
-      try {
-        const resp = await axios.post<TjbaGraphqlResponse>(
-          GRAPHQL_URL,
-          {
-            operationName: 'filter',
-            variables: {
-              decisaoFilter: {
-                assunto: '',
-                orgaos: [],
-                relatores: [],
-                classes: [],
-                dataInicial: '1980-02-01T03:00:00.000Z',
-                segundoGrau: true,
-                turmasRecursais: true,
-                tipoAcordaos: true,
-                tipoDecisoesMonocraticas: true,
-                ordenadoPor: 'dataPublicacao',
+    for (let dia = new Date(hoje); dia >= new Date(`${ANO_INICIAL}-01-01`); dia.setDate(dia.getDate() - 1)) {
+      const dataIso = dia.toISOString().slice(0, 10);
+      let pagina = 0;
+      let falhasSeguidas = 0;
+
+      while (pagina < PAGINAS_MAX_POR_DIA) {
+        let json: TjbaGraphqlResponse;
+        try {
+          const resp = await axios.post<TjbaGraphqlResponse>(
+            GRAPHQL_URL,
+            {
+              operationName: 'filter',
+              variables: {
+                decisaoFilter: {
+                  assunto: '',
+                  orgaos: [],
+                  relatores: [],
+                  classes: [],
+                  dataInicial: `${dataIso}T03:00:00.000Z`,
+                  dataFinal: `${dataIso}T23:59:59.000Z`,
+                  segundoGrau: true,
+                  turmasRecursais: true,
+                  tipoAcordaos: true,
+                  tipoDecisoesMonocraticas: true,
+                  ordenadoPor: 'dataPublicacao',
+                },
+                pageNumber: pagina,
+                itemsPerPage: ITENS_POR_PAGINA_VARRER_TUDO,
               },
-              pageNumber: pagina,
-              itemsPerPage: ITENS_POR_PAGINA_VARRER_TUDO,
+              query: QUERY,
             },
-            query: QUERY,
-          },
-          {
-            headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; JuitBot/1.0)' },
-            timeout: 30000,
-          },
-        );
-        json = resp.data;
-        // O GraphQL retorna 200 OK mesmo em erro interno (data: null,
-        // errors: [...]) — sem isso, o optional chaining no parser
-        // silenciosamente devolve array vazio, e o loop confunde erro
-        // com "acabaram os resultados" (achado ao vivo: pagina 20
-        // quebrava assim, e o job fechava como CONCLUIDO faltando
-        // 3,27M de 3,28M registros).
-        if (json.errors?.length) {
-          throw new Error(`GraphQL error: ${json.errors[0]?.message ?? 'erro desconhecido'}`);
+            {
+              headers: { 'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; JuitBot/1.0)' },
+              timeout: 30000,
+            },
+          );
+          json = resp.data;
+          // O GraphQL retorna 200 OK mesmo em erro interno (data: null,
+          // errors: [...]) — sem isso, o optional chaining no parser
+          // silenciosamente devolve array vazio, e o loop confunde erro
+          // com "acabaram os resultados".
+          if (json.errors?.length) {
+            throw new Error(`GraphQL error: ${json.errors[0]?.message ?? 'erro desconhecido'}`);
+          }
+          falhasSeguidas = 0;
+        } catch (err: any) {
+          falhasSeguidas++;
+          this.logger.warn(`TJBA: falha na requisicao (varrer tudo, dia ${dataIso}, pagina ${pagina}): ${err.message}`);
+          if (falhasSeguidas >= 5) {
+            this.logger.error(`TJBA: 5 falhas seguidas no dia ${dataIso}, pulando para o proximo dia`);
+            break;
+          }
+          await esperar(5000);
+          continue;
         }
-        falhasSeguidas = 0;
-      } catch (err: any) {
-        falhasSeguidas++;
-        this.logger.warn(`TJBA: falha na requisicao (varrer tudo, pagina ${pagina}): ${err.message}`);
-        if (falhasSeguidas >= 5) {
-          throw new Error(`TJBA: 5 falhas seguidas na pagina ${pagina} durante varredura completa (parcial: nao esgotou o acervo) — ${err.message}`);
+
+        const itens = parseResultadosTjba(json);
+        if (!itens.length) {
+          break;
         }
-        await esperar(5000);
-        continue;
+
+        for (const item of itens) {
+          yield {
+            numeroProcesso: item.numeroProcesso,
+            orgaoJulgador: item.orgaoJulgador,
+            relator: item.relator,
+            dataJulgamento: item.dataJulgamento,
+            ementa: item.ementa,
+          };
+        }
+
+        pagina++;
+        await esperar(500);
       }
 
-      const itens = parseResultadosTjba(json);
-      if (!itens.length) {
-        this.logger.log(`TJBA: varredura completa encerrada na pagina ${pagina} (sem mais resultados)`);
-        break;
+      if (pagina >= PAGINAS_MAX_POR_DIA) {
+        this.logger.warn(`TJBA: dia ${dataIso} atingiu o teto de seguranca de offset (${OFFSET_MAX_SEGURO}) sem esgotar — pode haver registros nao coletados nesse dia`);
       }
-
-      for (const item of itens) {
-        yield {
-          numeroProcesso: item.numeroProcesso,
-          orgaoJulgador: item.orgaoJulgador,
-          relator: item.relator,
-          dataJulgamento: item.dataJulgamento,
-          ementa: item.ementa,
-        };
-      }
-
-      if (pagina % 20 === 0) {
-        this.logger.log(`TJBA: varredura completa, pagina ${pagina} (total esperado: ${json.data?.filter?.itemCount ?? '?'})`);
-      }
-
-      pagina++;
-      await esperar(800);
     }
   }
 }
