@@ -144,8 +144,7 @@ export class TjmtHellsgateAdapter implements CrawlerAdapter {
         falhasSeguidas++;
         this.logger.warn(`TJMT: falha na requisicao (varrer tudo, pagina ${pagina}): ${err.message}`);
         if (falhasSeguidas >= 5) {
-          this.logger.error('TJMT: 5 falhas seguidas, encerrando varredura');
-          break;
+          throw new Error(`TJMT: 5 falhas seguidas na pagina ${pagina} durante varredura completa (parcial: nao esgotou o acervo) — ${err.message}`);
         }
         await esperar(5000);
         continue;

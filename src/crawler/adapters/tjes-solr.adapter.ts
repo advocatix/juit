@@ -114,8 +114,7 @@ export class TjesSolrAdapter implements CrawlerAdapter {
         falhasSeguidas++;
         this.logger.warn(`TJES: falha na requisicao (varrer tudo, pagina ${pagina}): ${err.message}`);
         if (falhasSeguidas >= 5) {
-          this.logger.error('TJES: 5 falhas seguidas, encerrando varredura');
-          break;
+          throw new Error(`TJES: 5 falhas seguidas na pagina ${pagina} durante varredura completa (parcial: nao esgotou o acervo) — ${err.message}`);
         }
         await esperar(5000);
         continue;

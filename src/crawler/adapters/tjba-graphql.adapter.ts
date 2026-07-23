@@ -172,13 +172,21 @@ export class TjbaGraphqlAdapter implements CrawlerAdapter {
           },
         );
         json = resp.data;
+        // O GraphQL retorna 200 OK mesmo em erro interno (data: null,
+        // errors: [...]) — sem isso, o optional chaining no parser
+        // silenciosamente devolve array vazio, e o loop confunde erro
+        // com "acabaram os resultados" (achado ao vivo: pagina 20
+        // quebrava assim, e o job fechava como CONCLUIDO faltando
+        // 3,27M de 3,28M registros).
+        if (json.errors?.length) {
+          throw new Error(`GraphQL error: ${json.errors[0]?.message ?? 'erro desconhecido'}`);
+        }
         falhasSeguidas = 0;
       } catch (err: any) {
         falhasSeguidas++;
         this.logger.warn(`TJBA: falha na requisicao (varrer tudo, pagina ${pagina}): ${err.message}`);
         if (falhasSeguidas >= 5) {
-          this.logger.error('TJBA: 5 falhas seguidas, encerrando varredura');
-          break;
+          throw new Error(`TJBA: 5 falhas seguidas na pagina ${pagina} durante varredura completa (parcial: nao esgotou o acervo) — ${err.message}`);
         }
         await esperar(5000);
         continue;

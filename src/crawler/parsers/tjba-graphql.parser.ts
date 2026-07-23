@@ -15,6 +15,7 @@ export interface TjbaGraphqlResponse {
       pageCount: number;
     };
   };
+  errors?: { message?: string }[];
 }
 
 export interface TjbaResultado {
