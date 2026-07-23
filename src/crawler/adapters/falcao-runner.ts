@@ -1,7 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { BrowserPoolService } from '../browser-pool.service';
 import { FalcaoNacionalAdapter, FalcaoNacionalConfig } from './falcao-nacional.adapter';
 import { TRIBUNAIS_FALCAO } from './falcao-tribunais';
 
@@ -16,7 +15,6 @@ const logger = new Logger('FalcaoRunner');
  */
 export async function executarFalcaoCrawl(
   prisma: PrismaService,
-  browserPool: BrowserPoolService,
   config: FalcaoNacionalConfig,
 ): Promise<{ jobId: string }> {
   const tribunalJob = await prisma.tribunal.upsert({
@@ -33,7 +31,7 @@ export async function executarFalcaoCrawl(
     data: { tribunalId: tribunalJob.id, status: 'RODANDO', iniciadoEm: new Date() },
   });
 
-  const adapter = new FalcaoNacionalAdapter(browserPool, config);
+  const adapter = new FalcaoNacionalAdapter(config);
 
   let coletados = 0;
   let novos = 0;

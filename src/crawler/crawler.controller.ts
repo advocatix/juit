@@ -471,7 +471,7 @@ export class CrawlerController {
    */
   @Post('falcao/executar')
   async executarFalcao(@Body() dto: ExecutarCrawlFalcaoDto) {
-    return executarFalcaoCrawl(this.prisma, this.browserPool, {
+    return executarFalcaoCrawl(this.prisma, {
       termos: dto.termos ?? TERMOS_PADRAO_FALCAO,
       maxPaginasPorTermo: dto.maxPaginasPorTermo ?? 3,
     });
